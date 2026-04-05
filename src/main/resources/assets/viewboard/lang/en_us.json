@@ -1,0 +1,12 @@
+{
+  "viewboard.button.open": "Keyboard View",
+  "viewboard.legend.conflict": "Conflict: multiple keybinds",
+  "viewboard.legend.single": "Used: exactly one keybind",
+  "viewboard.legend.unused": "Unused: available to bind",
+  "viewboard.screen.scancode_note": "%s scancode-only keybinds are not shown on this keysym map.",
+  "viewboard.screen.subtitle": "Hover a key to see which vanilla or modded keybinds use it. Green is unique, red is conflicting.",
+  "viewboard.screen.title": "Keyboard View",
+  "viewboard.tooltip.multiple": "%s keybinds use this key",
+  "viewboard.tooltip.single": "%s keybind uses this key",
+  "viewboard.tooltip.unused": "No keybind currently uses this key."
+}
