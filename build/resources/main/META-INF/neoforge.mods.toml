@@ -1,0 +1,24 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+
+[[mods]]
+modId="keyview"
+version="1.0.0"
+displayName="KeyView"
+authors="mx"
+description="Adds a keyboard map screen to the controls menu that shows used, conflicting, and free keys."
+
+[[dependencies.keyview]]
+modId="neoforge"
+type="required"
+versionRange="[21.1.172,)"
+ordering="NONE"
+side="CLIENT"
+
+[[dependencies.keyview]]
+modId="minecraft"
+type="required"
+versionRange="[1.21.1,1.22)"
+ordering="NONE"
+side="CLIENT"
