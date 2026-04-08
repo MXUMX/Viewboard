@@ -11,6 +11,7 @@ import java.util.Map;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
 import net.minecraft.client.gui.screens.inventory.tooltip.DefaultTooltipPositioner;
 import net.minecraft.client.gui.screens.Screen;
@@ -28,7 +29,6 @@ public final class KeyboardViewScreen extends Screen {
 
     private final Screen parent;
     private final Map<Integer, List<KeyMapping>> bindingsByKey = new HashMap<>();
-    private final List<KeyMapping> scancodeBindings = new ArrayList<>();
     private KeyBounds hoveredKey;
 
     public KeyboardViewScreen(Screen parent) {
@@ -39,7 +39,7 @@ public final class KeyboardViewScreen extends Screen {
     @Override
     protected void init() {
         this.rebuildBindings();
-        this.addRenderableWidget(Button.Plain.builder(Component.translatable("gui.back"), button ->
+        this.addRenderableWidget(Button.builder(Component.translatable("gui.back"), button ->
                 this.onClose())
             .bounds(this.width / 2 - 75, this.height - 28, 150, 20)
             .build());
@@ -65,15 +65,6 @@ public final class KeyboardViewScreen extends Screen {
         guiGraphics.drawCenteredString(this.font, Component.translatable("viewboard.screen.subtitle"), this.width / 2, 24, 0xFFB8B8B8);
         this.renderLegend(guiGraphics);
         this.renderKeyboard(guiGraphics, mouseX, mouseY);
-        if (!this.scancodeBindings.isEmpty()) {
-            guiGraphics.drawCenteredString(
-                this.font,
-                Component.translatable("viewboard.screen.scancode_note", this.scancodeBindings.size()),
-                this.width / 2,
-                this.height - 40,
-                0xFFE2C46B
-            );
-        }
 
         for (var renderable : this.renderables) {
             renderable.render(guiGraphics, mouseX, mouseY, partialTick);
@@ -84,35 +75,25 @@ public final class KeyboardViewScreen extends Screen {
         }
     }
 
-    @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (keyCode == 256) {
-            this.onClose();
-            return true;
+    public boolean mouseScrolled(double scrollX, double scrollY, double scrollDelta) {
+        if (scrollDelta > 0 && this.hoveredKey != null) {
+            // Scroll up
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        if (scrollDelta < 0 && this.hoveredKey != null) {
+            // Scroll down  
+        }
+        return false;
     }
 
     private void rebuildBindings() {
         this.bindingsByKey.clear();
-        this.scancodeBindings.clear();
         for (KeyMapping mapping : Minecraft.getInstance().options.keyMappings) {
-            InputConstants.Key key = mapping.getKey();
-            if (key.getType() == InputConstants.Type.SCANCODE) {
-                this.scancodeBindings.add(mapping);
-                continue;
-            }
-
-            if (key.getType() != InputConstants.Type.KEYSYM) {
-                continue;
-            }
-
-            this.bindingsByKey.computeIfAbsent(key.getValue(), unused -> new ArrayList<>()).add(mapping);
+            this.bindingsByKey.computeIfAbsent(mapping.getKey().getValue(), unused -> new ArrayList<>()).add(mapping);
         }
 
         for (List<KeyMapping> mappings : this.bindingsByKey.values()) {
             mappings.sort(Comparator
-                .comparing((KeyMapping mapping) -> Component.translatable(mapping.getCategory().getId()).getString())
+                .comparing((KeyMapping mapping) -> Component.translatable(mapping.getCategory().toString()).getString())
                 .thenComparing(mapping -> Component.translatable(mapping.getName()).getString()));
         }
     }
@@ -236,7 +217,7 @@ public final class KeyboardViewScreen extends Screen {
             mappings.size()));
         for (KeyMapping mapping : mappings) {
             tooltip.add(Component.literal(
-                Component.translatable(mapping.getCategory().getId()).getString() + " - " +
+                Component.translatable(mapping.getCategory().toString()).getString() + " - " +
                     Component.translatable(mapping.getName()).getString()));
         }
         return tooltip;

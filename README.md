@@ -1,21 +1,23 @@
 # ViewBoard
 
-ViewBoard is a client-side NeoForge mod for Minecraft 1.21.1 that adds a keyboard map screen to the controls menu. The screen helps show which keys are used, conflicting, or still free.
+ViewBoard is a client-side NeoForge mod for Minecraft 1.21.11 that adds a keyboard map screen to the controls menu. The screen helps show which keys are used, conflicting, or still free.
 
-IMPORTANT NOTE: A GUI scale of ***3 or below*** is required to properly display the keyboard. 
+This branch (`neoforge-1.21.11`) has been tested and confirmed to work only with Minecraft `1.21.11` on NeoForge `21.11.42`.
+
+IMPORTANT NOTE: A GUI scale of ***3 or below*** is required to properly display the keyboard.
 
 ## Requirements
 
 - Java 21
-- Minecraft 1.21.1
-- NeoForge 21.1.172
+- Minecraft 1.21.11
+- NeoForge 21.11.42
 
 ## Build
 
 Use the Gradle wrapper from the project root:
 
 ```bash
-./gradlew build
+./gradlew clean build
 ```
 
 Built jars are written to:
@@ -24,7 +26,7 @@ Built jars are written to:
 build/libs/
 ```
 
-The standard build now produces both the mod jar and a matching `-sources` jar.
+The build produces both the mod jar and a matching `-sources` jar.
 
 ## Project Layout
 
