@@ -3,7 +3,6 @@ package com.mx.viewboard.client;
 import com.mx.viewboard.client.layout.KeyboardKey;
 import com.mx.viewboard.client.layout.KeyboardLayout;
 import com.mx.viewboard.client.layout.KeyboardSection;
-import com.mojang.blaze3d.platform.InputConstants;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -12,7 +11,8 @@ import java.util.Map;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import net.minecraft.client.gui.screens.inventory.tooltip.DefaultTooltipPositioner;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
@@ -39,7 +39,7 @@ public final class KeyboardViewScreen extends Screen {
     @Override
     protected void init() {
         this.rebuildBindings();
-        this.addRenderableWidget(Button.builder(Component.translatable("gui.back"), button ->
+        this.addRenderableWidget(Button.Plain.builder(Component.translatable("gui.back"), button ->
                 this.onClose())
             .bounds(this.width / 2 - 75, this.height - 28, 150, 20)
             .build());
@@ -80,7 +80,7 @@ public final class KeyboardViewScreen extends Screen {
         }
 
         if (this.hoveredKey != null) {
-            guiGraphics.renderComponentTooltip(this.font, this.createTooltip(this.hoveredKey.key()), mouseX, mouseY);
+            guiGraphics.renderTooltip(this.font, this.createTooltip(this.hoveredKey.key()).stream().map(component -> ClientTooltipComponent.create(component.getVisualOrderText())).toList(), mouseX, mouseY, DefaultTooltipPositioner.INSTANCE, null);
         }
     }
 
@@ -112,7 +112,7 @@ public final class KeyboardViewScreen extends Screen {
 
         for (List<KeyMapping> mappings : this.bindingsByKey.values()) {
             mappings.sort(Comparator
-                .comparing((KeyMapping mapping) -> Component.translatable(mapping.getCategory()).getString())
+                .comparing((KeyMapping mapping) -> Component.translatable(mapping.getCategory().getId()).getString())
                 .thenComparing(mapping -> Component.translatable(mapping.getName()).getString()));
         }
     }
@@ -150,7 +150,7 @@ public final class KeyboardViewScreen extends Screen {
         guiGraphics.fill(x, y + 11, x + 12, y + 12, COLOR_BORDER);
         guiGraphics.fill(x, y, x + 1, y + 12, COLOR_BORDER);
         guiGraphics.fill(x + 11, y, x + 12, y + 12, COLOR_BORDER);
-        guiGraphics.drawString(this.font, text, x + 18, y + 2, COLOR_TEXT_LIGHT);
+        guiGraphics.drawString(this.font, text, x + 18, y + 2, COLOR_TEXT_LIGHT, false);
     }
 
     private void renderPanel(GuiGraphics guiGraphics) {
@@ -236,7 +236,7 @@ public final class KeyboardViewScreen extends Screen {
             mappings.size()));
         for (KeyMapping mapping : mappings) {
             tooltip.add(Component.literal(
-                Component.translatable(mapping.getCategory()).getString() + " - " +
+                Component.translatable(mapping.getCategory().getId()).getString() + " - " +
                     Component.translatable(mapping.getName()).getString()));
         }
         return tooltip;
