@@ -36,8 +36,8 @@ viewboard-neoforge-<minecraft-version>-<mod-version>-sources.jar
 For example:
 
 ```text
-viewboard-neoforge-1.21.11-1.0.0.jar
-viewboard-neoforge-1.21.11-1.0.0-sources.jar
+viewboard-neoforge-1.21.11-1.0.1.jar
+viewboard-neoforge-1.21.11-1.0.1-sources.jar
 ```
 
 ## Project Layout
