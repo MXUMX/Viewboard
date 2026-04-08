@@ -26,7 +26,19 @@ Built jars are written to:
 build/libs/
 ```
 
-The standard build now produces both the mod jar and a matching `-sources` jar.
+The standard build now produces both the mod jar and a matching `-sources` jar. The generated filenames follow this pattern:
+
+```text
+viewboard-neoforge-<minecraft-version>-<mod-version>.jar
+viewboard-neoforge-<minecraft-version>-<mod-version>-sources.jar
+```
+
+For example:
+
+```text
+viewboard-neoforge-1.21.1-1.0.0.jar
+viewboard-neoforge-1.21.1-1.0.0-sources.jar
+```
 
 ## Project Layout
 
