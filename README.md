@@ -1,5 +1,9 @@
 # ViewBoard
 
+[<img src="https://shields.io" alt="Modrinth" />](https://modrinth.com/mod/viewboard)
+
+[<img src="https://shields.io" alt="CurseForge" />](https://www.curseforge.com/minecraft/mc-mods/viewboard)
+
 ViewBoard is a client-side NeoForge mod for Minecraft 1.21.11 that adds a keyboard map screen to the controls menu. The screen helps show which keys are used, conflicting, or still free.
 
 This branch (`neoforge-1.21.11`) has been tested and confirmed to work only with Minecraft `1.21.11` on NeoForge `21.11.42`.
