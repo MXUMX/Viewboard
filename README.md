@@ -1,23 +1,27 @@
 # ViewBoard
 
-ViewBoard is a client-side NeoForge mod for Minecraft 1.21.1 that adds a keyboard map screen to the controls menu. The screen helps show which keys are used, conflicting, or still free.
+[<img src="https://img.shields.io/modrinth/dt/xf9PORQx?logo=modrinth&style=for-the-badge" alt="Modrinth Downloads" />](https://modrinth.com/mod/viewboard)
 
-This branch (`neoforge-1.21.1-1.21.5`) has been tested and confirmed to work on Minecraft `1.21.1` through `1.21.5` with NeoForge `21.1.172`.
+[<img src="https://img.shields.io/curseforge/dt/1485396?logo=curseforge&style=for-the-badge" alt="CurseForge Downloads" />](https://www.curseforge.com/minecraft/mc-mods/viewboard)
+
+ViewBoard is a client-side NeoForge mod for Minecraft 1.21.11 that adds a keyboard map screen to the controls menu. The screen helps show which keys are used, conflicting, or still free.
+
+This branch (`neoforge-1.21.11`) has been tested and confirmed to work only with Minecraft `1.21.11` on NeoForge `21.11.42`.
 
 IMPORTANT NOTE: A GUI scale of ***3 or below*** is required to properly display the keyboard.
 
 ## Requirements
 
 - Java 21
-- Minecraft 1.21.1 through 1.21.5
-- NeoForge 21.1.172
+- Minecraft 1.21.11
+- NeoForge 21.11.42
 
 ## Build
 
 Use the Gradle wrapper from the project root:
 
 ```bash
-./gradlew build
+./gradlew clean build
 ```
 
 Built jars are written to:
@@ -26,7 +30,7 @@ Built jars are written to:
 build/libs/
 ```
 
-The standard build now produces both the mod jar and a matching `-sources` jar. The generated filenames follow this pattern:
+The build produces both the mod jar and a matching `-sources` jar. The generated filenames follow this pattern:
 
 ```text
 viewboard-neoforge-<minecraft-version>-<mod-version>.jar
@@ -36,8 +40,8 @@ viewboard-neoforge-<minecraft-version>-<mod-version>-sources.jar
 For example:
 
 ```text
-viewboard-neoforge-1.21.1-1.0.1.jar
-viewboard-neoforge-1.21.1-1.0.1-sources.jar
+viewboard-neoforge-1.21.11-1.0.1.jar
+viewboard-neoforge-1.21.11-1.0.1-sources.jar
 ```
 
 ## Project Layout
