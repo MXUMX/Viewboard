@@ -16,7 +16,7 @@ ViewBoard supports most GUI scales, but the keyboard view is currently most comf
 - Minecraft 1.21.1
 - NeoForge 21.1.172
 
-## New Features
+## New Features in 1.1.0+
 
 - Support for most GUI scales, with the best results at GUI scale `3` or below
 - An ignore system for keybinds that lets intentional conflicts exist without warnings
