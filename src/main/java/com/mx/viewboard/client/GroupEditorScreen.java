@@ -13,6 +13,7 @@ import net.minecraft.client.gui.components.ObjectSelectionList;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.neoforged.neoforge.client.settings.KeyModifier;
 
 public final class GroupEditorScreen extends Screen {
     private static final int COLOR_TEXT = 0xFFFFFFFF;
@@ -37,6 +38,7 @@ public final class GroupEditorScreen extends Screen {
     private Button deleteButton;
     private Button backButton;
     private boolean capturingTrigger;
+    private SerializedKey pendingModifierKey;
     private String selectedGroupId;
     private boolean compactLayout;
     private int sidebarX;
@@ -69,7 +71,11 @@ public final class GroupEditorScreen extends Screen {
         }).bounds(this.sidebarX, 110, this.sidebarWidth, 20).build());
 
         this.createButton = this.addRenderableWidget(Button.builder(Component.translatable("viewboard.groups.create"), button -> {
-            KeybindGroupConfig group = this.rules.createGroup("Group " + (this.rules.groups().size() + 1), SerializedKey.fromInputKey(this.mapping.getKey()));
+            KeybindGroupConfig group = this.rules.createGroup(
+                "Group " + (this.rules.groups().size() + 1),
+                SerializedKey.fromInputKey(this.mapping.getKey()),
+                this.mapping.getKeyModifier()
+            );
             this.selectedGroupId = group.id();
             this.refreshWidgets();
         }).bounds(this.sidebarX, 140, this.sidebarWidth, 20).build());
@@ -123,15 +129,21 @@ public final class GroupEditorScreen extends Screen {
         if (this.capturingTrigger) {
             if (keyCode == 256) {
                 this.capturingTrigger = false;
+                this.pendingModifierKey = null;
                 this.refreshWidgets();
                 return true;
             }
 
             KeybindGroupConfig group = this.selectedGroup();
             if (group != null) {
-                this.rules.setGroupTrigger(group.id(), SerializedKey.fromInputKey(InputConstants.Type.KEYSYM.getOrCreate(keyCode)));
-                this.capturingTrigger = false;
-                this.refreshWidgets();
+                InputConstants.Key inputKey = InputConstants.Type.KEYSYM.getOrCreate(keyCode);
+                KeyModifier modifier = activeModifierForTrigger(inputKey);
+                if (KeyModifier.isKeyCodeModifier(inputKey) && modifier == KeyModifier.NONE) {
+                    this.pendingModifierKey = SerializedKey.fromInputKey(inputKey);
+                    return true;
+                }
+
+                this.applyCapturedTrigger(group, SerializedKey.fromInputKey(inputKey), modifier);
                 return true;
             }
         }
@@ -140,13 +152,31 @@ public final class GroupEditorScreen extends Screen {
     }
 
     @Override
+    public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+        if (this.capturingTrigger && this.pendingModifierKey != null) {
+            SerializedKey releasedKey = SerializedKey.fromInputKey(InputConstants.Type.KEYSYM.getOrCreate(keyCode));
+            if (this.pendingModifierKey.equals(releasedKey)) {
+                KeybindGroupConfig group = this.selectedGroup();
+                if (group != null) {
+                    this.applyCapturedTrigger(group, this.pendingModifierKey, KeyModifier.NONE);
+                    return true;
+                }
+            }
+        }
+
+        return super.keyReleased(keyCode, scanCode, modifiers);
+    }
+
+    @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (this.capturingTrigger) {
             KeybindGroupConfig group = this.selectedGroup();
             if (group != null) {
-                this.rules.setGroupTrigger(group.id(), SerializedKey.fromInputKey(InputConstants.Type.MOUSE.getOrCreate(button)));
-                this.capturingTrigger = false;
-                this.refreshWidgets();
+                this.applyCapturedTrigger(
+                    group,
+                    SerializedKey.fromInputKey(InputConstants.Type.MOUSE.getOrCreate(button)),
+                    activeModifierForTrigger(null)
+                );
                 return true;
             }
         }
@@ -298,8 +328,32 @@ public final class GroupEditorScreen extends Screen {
         this.nameBox.setValue(group == null ? "" : group.name());
         this.triggerButton.setMessage(Component.translatable(
             this.capturingTrigger ? "viewboard.groups.capturing" : "viewboard.groups.trigger",
-            group == null ? Component.literal("-") : Component.literal(SerializedKey.parse(group.triggerKey()).displayLabel())
+            group == null
+                ? Component.literal("-")
+                : Component.literal(ViewBoardKeybindRules.displayBindingLabel(
+                    SerializedKey.parse(group.triggerKey()),
+                    ViewBoardKeybindRules.parseModifier(group.triggerModifier())
+                ))
         ));
+    }
+
+    private void applyCapturedTrigger(KeybindGroupConfig group, SerializedKey key, KeyModifier modifier) {
+        this.rules.setGroupTrigger(group.id(), key, modifier);
+        this.pendingModifierKey = null;
+        this.capturingTrigger = false;
+        this.refreshWidgets();
+    }
+
+    private static KeyModifier activeModifierForTrigger(InputConstants.Key primaryKey) {
+        for (KeyModifier modifier : KeyModifier.MODIFIER_VALUES) {
+            if (primaryKey != null && modifier.matches(primaryKey)) {
+                continue;
+            }
+            if (modifier.isActive(null)) {
+                return modifier;
+            }
+        }
+        return KeyModifier.NONE;
     }
 
     private KeybindGroupConfig selectedGroup() {
@@ -360,7 +414,17 @@ public final class GroupEditorScreen extends Screen {
             guiGraphics.fill(left, rowTop, left + width, rowTop + rowHeight, selected ? 0x6654A4FF : hovered ? 0x55363636 : 0x33242424);
             guiGraphics.fill(left, top + 2, left + width, top + 3, COLOR_BORDER);
             guiGraphics.drawString(font, this.group.name(), left + 8, top + 6, COLOR_TEXT, false);
-            guiGraphics.drawString(font, SerializedKey.parse(this.group.triggerKey()).displayLabel(), left + 8, top + 18, COLOR_SUBTEXT, false);
+            guiGraphics.drawString(
+                font,
+                ViewBoardKeybindRules.displayBindingLabel(
+                    SerializedKey.parse(this.group.triggerKey()),
+                    ViewBoardKeybindRules.parseModifier(this.group.triggerModifier())
+                ),
+                left + 8,
+                top + 18,
+                COLOR_SUBTEXT,
+                false
+            );
         }
 
         @Override

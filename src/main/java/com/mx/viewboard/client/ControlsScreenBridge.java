@@ -22,6 +22,7 @@ public final class ControlsScreenBridge {
     public static void decorate(KeyBindsScreen screen) {
         RULES.ensureLoaded();
         RULES.syncRuntimeState();
+        List<ViewBoardKeybindRules.KeyBindingState> states = RULES.collectBindingStates();
 
         try {
             Field listField = KeyBindsScreen.class.getDeclaredField("keyBindsList");
@@ -33,7 +34,7 @@ public final class ControlsScreenBridge {
             }
 
             for (Object entry : keyBindsList.children()) {
-                decorateEntry(screen, entry);
+                decorateEntry(screen, entry, states);
             }
 
         } catch (Exception e) {
@@ -42,7 +43,7 @@ public final class ControlsScreenBridge {
         }
     }
 
-    private static void decorateEntry(KeyBindsScreen screen, Object entry) {
+    private static void decorateEntry(KeyBindsScreen screen, Object entry, List<ViewBoardKeybindRules.KeyBindingState> states) {
         try {
             Class<?> clazz = entry.getClass();
 
@@ -73,7 +74,7 @@ public final class ControlsScreenBridge {
             Button changeButton = (Button) changeButtonField.get(entry);
 
             // --- collision logic ---
-            boolean collision = hasEffectiveConflict(mapping);
+            boolean collision = hasEffectiveConflict(mapping, states);
 
             // --- hasCollision (optional field) ---
             try {
@@ -85,7 +86,7 @@ public final class ControlsScreenBridge {
             }
 
             // --- tooltip ---
-            changeButton.setTooltip(Tooltip.create(createTooltip(mapping, collision)));
+            changeButton.setTooltip(Tooltip.create(createTooltip(mapping, collision, states)));
 
             if (screen.selectedKey == mapping) {
                 return;
@@ -107,7 +108,7 @@ public final class ControlsScreenBridge {
         }
     }
 
-    private static boolean hasEffectiveConflict(KeyMapping mapping) {
+    private static boolean hasEffectiveConflict(KeyMapping mapping, List<ViewBoardKeybindRules.KeyBindingState> states) {
         if (mapping.isUnbound()) {
             return false;
         }
@@ -115,7 +116,7 @@ public final class ControlsScreenBridge {
             return false;
         }
 
-        ViewBoardKeybindRules.KeyBindingState state = RULES.collectBindingStates().stream()
+        ViewBoardKeybindRules.KeyBindingState state = states.stream()
             .filter(candidate -> Objects.equals(candidate.keybindId(), mapping.getName()))
             .findFirst()
             .orElse(null);
@@ -124,12 +125,13 @@ public final class ControlsScreenBridge {
             return false;
         }
 
-        for (ViewBoardKeybindRules.KeyBindingState other : RULES.usageFor(mapping.getKey()).states()) {
+        for (ViewBoardKeybindRules.KeyBindingState other : states) {
             if (Objects.equals(other.keybindId(), state.keybindId()) || other.ignored()) {
                 continue;
             }
 
-            if (!Objects.equals(other.groupId(), state.groupId()) || state.groupId() == null) {
+            if ((!Objects.equals(other.groupId(), state.groupId()) || state.groupId() == null)
+                && conflictsWith(mapping, other.mapping())) {
                 return true;
             }
         }
@@ -137,7 +139,7 @@ public final class ControlsScreenBridge {
         return false;
     }
 
-    private static Component createTooltip(KeyMapping mapping, boolean collision) {
+    private static Component createTooltip(KeyMapping mapping, boolean collision, List<ViewBoardKeybindRules.KeyBindingState> states) {
         List<Component> lines = new ArrayList<>();
 
         lines.add(Component.translatable(mapping.getName()));
@@ -153,11 +155,21 @@ public final class ControlsScreenBridge {
 
         if (collision) {
             List<Component> conflicts = new ArrayList<>();
+            ViewBoardKeybindRules.KeyBindingState current = states.stream()
+                .filter(state -> Objects.equals(state.keybindId(), mapping.getName()))
+                .findFirst()
+                .orElse(null);
 
-            for (ViewBoardKeybindRules.KeyBindingState state :
-                    RULES.usageFor(mapping.getKey()).states()) {
+            for (ViewBoardKeybindRules.KeyBindingState state : states) {
+                if (current != null
+                    && current.groupId() != null
+                    && Objects.equals(current.groupId(), state.groupId())) {
+                    continue;
+                }
 
-                if (!Objects.equals(state.keybindId(), mapping.getName()) && !state.ignored()) {
+                if (!Objects.equals(state.keybindId(), mapping.getName())
+                    && !state.ignored()
+                    && conflictsWith(mapping, state.mapping())) {
                     conflicts.add(Component.translatable(state.mapping().getName()));
                 }
             }
@@ -186,5 +198,9 @@ public final class ControlsScreenBridge {
         }
 
         return tooltip;
+    }
+
+    private static boolean conflictsWith(KeyMapping left, KeyMapping right) {
+        return left.same(right) || left.hasKeyModifierConflict(right) || right.hasKeyModifierConflict(left);
     }
 }

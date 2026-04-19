@@ -30,8 +30,10 @@ public final class KeybindRulesScreen extends Screen {
     private final Screen parent;
     private final ViewBoardKeybindRules rules = ViewBoardKeybindRules.getInstance();
     private EditBox searchBox;
+    private Button filterButton;
     private RulesList rulesList;
     private String lastSearch = "";
+    private IgnoredFilter ignoredFilter = IgnoredFilter.ALL;
     private Button backButton;
 
     public KeybindRulesScreen(Screen parent) {
@@ -43,10 +45,17 @@ public final class KeybindRulesScreen extends Screen {
     protected void init() {
         this.rules.ensureLoaded();
 
-        this.searchBox = new EditBox(this.font, PADDING + 8, 30, Math.min(240, this.width - (PADDING + 8) * 2), 20, Component.translatable("viewboard.rules.search"));
+        this.searchBox = new EditBox(this.font, PADDING + 8, 30, this.searchBoxWidth(), 20, Component.translatable("viewboard.rules.search"));
         this.searchBox.setHint(Component.translatable("viewboard.rules.search"));
         this.searchBox.setMaxLength(80);
         this.addRenderableWidget(this.searchBox);
+
+        this.filterButton = this.addRenderableWidget(Button.builder(Component.empty(), button -> {
+            this.ignoredFilter = this.ignoredFilter.next();
+            this.refreshFilterButton();
+            this.refreshList();
+        }).bounds(this.searchBox.getX() + this.searchBox.getWidth() + 6, 30, 96, 20).build());
+        this.refreshFilterButton();
 
         int listTop = this.searchBox.getY() + this.searchBox.getHeight() + 8;
         int listBottom = this.height - 28 - 6;
@@ -69,7 +78,10 @@ public final class KeybindRulesScreen extends Screen {
         super.resize(minecraft, width, height);
         if (this.searchBox != null) {
             this.searchBox.setX(PADDING + 8);
-            this.searchBox.setWidth(Math.min(240, this.width - (PADDING + 8) * 2));
+            this.searchBox.setWidth(this.searchBoxWidth());
+        }
+        if (this.filterButton != null && this.searchBox != null) {
+            this.filterButton.setPosition(this.searchBox.getX() + this.searchBox.getWidth() + 6, this.searchBox.getY());
         }
         if (this.backButton != null) {
             this.backButton.setPosition(this.width / 2 - 75, this.height - 28);
@@ -126,6 +138,14 @@ public final class KeybindRulesScreen extends Screen {
 
         List<RuleEntry> entries = new ArrayList<>();
         for (KeyMapping mapping : mappings) {
+            boolean ignored = this.rules.isIgnored(mapping);
+            if (this.ignoredFilter == IgnoredFilter.IGNORED_ONLY && !ignored) {
+                continue;
+            }
+            if (this.ignoredFilter == IgnoredFilter.ACTIVE_ONLY && ignored) {
+                continue;
+            }
+
             String haystack = (ViewBoardKeybindRules.categoryString(mapping) + " " + Component.translatable(mapping.getName()).getString()).toLowerCase(Locale.ROOT);
             if (!query.isEmpty() && !haystack.contains(query)) {
                 continue;
@@ -134,6 +154,16 @@ public final class KeybindRulesScreen extends Screen {
             entries.add(new RuleEntry(mapping));
         }
         this.rulesList.replace(entries);
+    }
+
+    private int searchBoxWidth() {
+        return Math.max(120, Math.min(240, this.width - (PADDING + 8) * 2 - 102));
+    }
+
+    private void refreshFilterButton() {
+        if (this.filterButton != null) {
+            this.filterButton.setMessage(Component.translatable(this.ignoredFilter.translationKey));
+        }
     }
 
     private final class RulesList extends ContainerObjectSelectionList<RuleEntry> {
@@ -172,7 +202,7 @@ public final class KeybindRulesScreen extends Screen {
             this.mapping = mapping;
             this.ignoreButton = Button.builder(Component.empty(), button -> {
                 rules.setIgnored(this.mapping, !rules.isIgnored(this.mapping));
-                this.refreshButtons();
+                KeybindRulesScreen.this.refreshList();
             }).bounds(0, 0, this.ignoreWidth, 20).build();
             this.groupButton = Button.builder(Component.empty(), button ->
                 Minecraft.getInstance().setScreen(new GroupEditorScreen(KeybindRulesScreen.this, this.mapping)))
@@ -250,6 +280,26 @@ public final class KeybindRulesScreen extends Screen {
             this.groupButton.setMessage(Component.translatable(
                 group == null ? "viewboard.rules.group_none" : "viewboard.rules.group_named",
                 group == null ? Component.empty() : Component.literal(group.name())));
+        }
+    }
+
+    private enum IgnoredFilter {
+        ALL("viewboard.rules.filter_all"),
+        IGNORED_ONLY("viewboard.rules.filter_ignored"),
+        ACTIVE_ONLY("viewboard.rules.filter_active");
+
+        private final String translationKey;
+
+        IgnoredFilter(String translationKey) {
+            this.translationKey = translationKey;
+        }
+
+        private IgnoredFilter next() {
+            return switch (this) {
+                case ALL -> IGNORED_ONLY;
+                case IGNORED_ONLY -> ACTIVE_ONLY;
+                case ACTIVE_ONLY -> ALL;
+            };
         }
     }
 }
