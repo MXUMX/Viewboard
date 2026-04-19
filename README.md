@@ -1,5 +1,20 @@
 # ViewBoard
 
+## Port Status
+
+This branch (`codex/forge-1.20.1-port`) is an attempted Forge 1.20.1 port.
+
+Critical blocker:
+- The Forge 1.20.1 build reaches Java compilation, but the current source tree is tightly coupled to NeoForge and 1.21-era APIs that are not present on Forge 1.20.1.
+- The failed compile is blocked by missing NeoForge-only types such as:
+- `net.neoforged.neoforge.client.settings.KeyModifier`
+- `net.neoforged.neoforge.client.event.ScreenEvent`
+- `net.neoforged.fml.common.EventBusSubscriber`
+- It also hits GUI API drift between 1.21 and 1.20.1, including controls-screen package changes and list/screen method signature differences.
+
+What this means:
+- A full-parity Forge 1.20.1 port requires a dedicated Forge compatibility layer or split source set instead of a straight dependency/build-script swap.
+
 [<img src="https://img.shields.io/modrinth/dt/xf9PORQx?logo=modrinth&style=for-the-badge" alt="Modrinth Downloads" />](https://modrinth.com/mod/viewboard)
 
 [<img src="https://img.shields.io/curseforge/dt/1485396?logo=curseforge&style=for-the-badge" alt="CurseForge Downloads" />](https://www.curseforge.com/minecraft/mc-mods/viewboard)

@@ -1,6 +1,6 @@
 package com.mx.viewboard;
 
-import net.neoforged.fml.common.Mod;
+import net.minecraftforge.fml.common.Mod;
 
 @Mod(ViewBoardMod.MOD_ID)
 public final class ViewBoardMod {
