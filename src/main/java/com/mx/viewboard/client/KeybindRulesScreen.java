@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Locale;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.ContainerObjectSelectionList;
@@ -74,8 +75,8 @@ public final class KeybindRulesScreen extends Screen {
     }
 
     @Override
-    public void resize(Minecraft minecraft, int width, int height) {
-        super.resize(minecraft, width, height);
+    public void resize(int width, int height) {
+        super.resize(width, height);
         if (this.searchBox != null) {
             this.searchBox.setX(PADDING + 8);
             this.searchBox.setWidth(this.searchBoxWidth());
@@ -182,7 +183,7 @@ public final class KeybindRulesScreen extends Screen {
         }
 
         @Override
-        protected int getScrollbarPosition() {
+        protected int scrollBarX() {
             return this.width - PADDING - 6;
         }
 
@@ -212,9 +213,11 @@ public final class KeybindRulesScreen extends Screen {
         }
 
         @Override
-        public void render(GuiGraphics guiGraphics, int index, int top, int left, int width, int height, int mouseX, int mouseY, boolean hovered, float partialTick) {
-            int rowTop = top + 2;
-            int rowHeight = ROW_HEIGHT - 4;
+        public void renderContent(GuiGraphics guiGraphics, int mouseX, int mouseY, boolean hovered, float partialTick) {
+            int left = this.getContentX();
+            int width = this.getContentWidth();
+            int rowTop = this.getContentY();
+            int rowHeight = Math.max(20, this.getContentHeight());
 
             int available = width - 8 - 6;
             int desired = 88 + 110;

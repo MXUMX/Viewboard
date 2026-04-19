@@ -4,17 +4,17 @@
 
 [<img src="https://img.shields.io/curseforge/dt/1485396?logo=curseforge&style=for-the-badge" alt="CurseForge Downloads" />](https://www.curseforge.com/minecraft/mc-mods/viewboard)
 
-ViewBoard is a client-side NeoForge mod for Minecraft 1.21.1 that adds a keyboard map screen and keybind-management tools to the controls menu. The screens help show which keys are used, conflicting, ignored, grouped, or still free.
+ViewBoard is a client-side NeoForge mod for Minecraft 1.21.11 that adds a keyboard map screen and keybind-management tools to the controls menu. The screens help show which keys are used, conflicting, ignored, grouped, or still free.
 
-This branch (`neoforge-1.21.1-1.21.5`) targets Minecraft `1.21.1` on NeoForge `21.1.172`.
+This branch (`codex/neoforge-1.21.11-port`) targets Minecraft `1.21.11` on NeoForge `21.11.42`.
 
 ViewBoard supports most GUI scales, but the keyboard view is currently most comfortable at GUI scale `3` or below.
 
 ## Requirements
 
 - Java 21
-- Minecraft 1.21.1
-- NeoForge 21.1.172
+- Minecraft 1.21.11
+- NeoForge 21.11.42
 
 ## New Features
 
@@ -60,8 +60,8 @@ viewboard-neoforge-<minecraft-version>-<mod-version>-sources.jar
 For example:
 
 ```text
-viewboard-neoforge-1.21.1-1.1.0.jar
-viewboard-neoforge-1.21.1-1.1.0-sources.jar
+viewboard-neoforge-1.21.11-1.1.0.jar
+viewboard-neoforge-1.21.11-1.1.0-sources.jar
 ```
 
 ## Project Layout

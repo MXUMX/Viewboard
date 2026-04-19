@@ -7,6 +7,8 @@ import com.mojang.blaze3d.platform.InputConstants;
 import java.util.List;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.ObjectSelectionList;
@@ -67,6 +69,9 @@ public final class GroupEditorScreen extends Screen {
 
         this.triggerButton = this.addRenderableWidget(Button.builder(Component.empty(), button -> {
             this.capturingTrigger = !this.capturingTrigger;
+            if (!this.capturingTrigger) {
+                this.pendingModifierKey = null;
+            }
             this.refreshWidgets();
         }).bounds(this.sidebarX, 110, this.sidebarWidth, 20).build());
 
@@ -125,9 +130,9 @@ public final class GroupEditorScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    public boolean keyPressed(KeyEvent keyEvent) {
         if (this.capturingTrigger) {
-            if (keyCode == 256) {
+            if (keyEvent.key() == 256) {
                 this.capturingTrigger = false;
                 this.pendingModifierKey = null;
                 this.refreshWidgets();
@@ -136,7 +141,7 @@ public final class GroupEditorScreen extends Screen {
 
             KeybindGroupConfig group = this.selectedGroup();
             if (group != null) {
-                InputConstants.Key inputKey = InputConstants.Type.KEYSYM.getOrCreate(keyCode);
+                InputConstants.Key inputKey = InputConstants.getKey(keyEvent);
                 KeyModifier modifier = activeModifierForTrigger(inputKey);
                 if (KeyModifier.isKeyCodeModifier(inputKey) && modifier == KeyModifier.NONE) {
                     this.pendingModifierKey = SerializedKey.fromInputKey(inputKey);
@@ -148,13 +153,13 @@ public final class GroupEditorScreen extends Screen {
             }
         }
 
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return super.keyPressed(keyEvent);
     }
 
     @Override
-    public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+    public boolean keyReleased(KeyEvent keyEvent) {
         if (this.capturingTrigger && this.pendingModifierKey != null) {
-            SerializedKey releasedKey = SerializedKey.fromInputKey(InputConstants.Type.KEYSYM.getOrCreate(keyCode));
+            SerializedKey releasedKey = SerializedKey.fromInputKey(InputConstants.getKey(keyEvent));
             if (this.pendingModifierKey.equals(releasedKey)) {
                 KeybindGroupConfig group = this.selectedGroup();
                 if (group != null) {
@@ -164,24 +169,24 @@ public final class GroupEditorScreen extends Screen {
             }
         }
 
-        return super.keyReleased(keyCode, scanCode, modifiers);
+        return super.keyReleased(keyEvent);
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(MouseButtonEvent mouseButtonEvent, boolean isDoubleClick) {
         if (this.capturingTrigger) {
             KeybindGroupConfig group = this.selectedGroup();
             if (group != null) {
                 this.applyCapturedTrigger(
                     group,
-                    SerializedKey.fromInputKey(InputConstants.Type.MOUSE.getOrCreate(button)),
+                    SerializedKey.fromInputKey(InputConstants.Type.MOUSE.getOrCreate(mouseButtonEvent.button())),
                     activeModifierForTrigger(null)
                 );
                 return true;
             }
         }
 
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(mouseButtonEvent, isDoubleClick);
     }
 
     @Override
@@ -227,8 +232,8 @@ public final class GroupEditorScreen extends Screen {
     }
 
     @Override
-    public void resize(Minecraft minecraft, int width, int height) {
-        super.resize(minecraft, width, height);
+    public void resize(int width, int height) {
+        super.resize(width, height);
         if (this.groupsList == null) {
             return;
         }
@@ -380,7 +385,7 @@ public final class GroupEditorScreen extends Screen {
         }
 
         @Override
-        protected int getScrollbarPosition() {
+        protected int scrollBarX() {
             return this.width - PADDING - 6;
         }
 
@@ -400,19 +405,22 @@ public final class GroupEditorScreen extends Screen {
         }
 
         @Override
-        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        public boolean mouseClicked(MouseButtonEvent mouseButtonEvent, boolean isDoubleClick) {
             selectedGroupId = this.group.id();
             refreshWidgets();
             return true;
         }
 
         @Override
-        public void render(GuiGraphics guiGraphics, int index, int top, int left, int width, int height, int mouseX, int mouseY, boolean hovered, float partialTick) {
+        public void renderContent(GuiGraphics guiGraphics, int mouseX, int mouseY, boolean hovered, float partialTick) {
+            int left = this.getContentX();
+            int top = this.getContentY();
+            int width = this.getContentWidth();
             boolean selected = this.group.id().equals(selectedGroupId);
-            int rowTop = top + 2;
-            int rowHeight = ROW_HEIGHT - 4;
+            int rowTop = top;
+            int rowHeight = Math.max(20, this.getContentHeight());
             guiGraphics.fill(left, rowTop, left + width, rowTop + rowHeight, selected ? 0x6654A4FF : hovered ? 0x55363636 : 0x33242424);
-            guiGraphics.fill(left, top + 2, left + width, top + 3, COLOR_BORDER);
+            guiGraphics.fill(left, rowTop, left + width, rowTop + 1, COLOR_BORDER);
             guiGraphics.drawString(font, this.group.name(), left + 8, top + 6, COLOR_TEXT, false);
             guiGraphics.drawString(
                 font,

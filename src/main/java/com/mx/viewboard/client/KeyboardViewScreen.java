@@ -14,6 +14,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.inventory.tooltip.ClientTooltipComponent;
+import net.minecraft.client.gui.screens.inventory.tooltip.DefaultTooltipPositioner;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
@@ -89,7 +91,16 @@ public final class KeyboardViewScreen extends Screen {
         super.render(guiGraphics, mouseX, mouseY, partialTick);
 
         if (this.hoveredKey != null) {
-            guiGraphics.renderComponentTooltip(this.font, this.createTooltip(this.hoveredKey.key()), mouseX, mouseY);
+            guiGraphics.renderTooltip(
+                this.font,
+                this.createTooltip(this.hoveredKey.key()).stream()
+                    .map(component -> ClientTooltipComponent.create(component.getVisualOrderText()))
+                    .toList(),
+                mouseX,
+                mouseY,
+                DefaultTooltipPositioner.INSTANCE,
+                null
+            );
         }
     }
 
@@ -223,11 +234,11 @@ public final class KeyboardViewScreen extends Screen {
         float drawX = x + (width - finalWidth * scale) / 2.0F;
         float drawY = y + (height - font.lineHeight * scale) / 2.0F;
 
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(drawX, drawY, 0.0F);
-        guiGraphics.pose().scale(scale, scale, 1.0F);
+        guiGraphics.pose().pushMatrix();
+        guiGraphics.pose().translate(drawX, drawY);
+        guiGraphics.pose().scale(scale, scale);
         guiGraphics.drawString(font, renderLabel, 0, 0, color, false);
-        guiGraphics.pose().popPose();
+        guiGraphics.pose().popMatrix();
     }
 
     private int getKeyColor(InputConstants.Key key) {
