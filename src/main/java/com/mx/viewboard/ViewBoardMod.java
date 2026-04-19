@@ -1,11 +1,11 @@
 package com.mx.viewboard;
 
-import net.neoforged.fml.common.Mod;
+import net.fabricmc.api.ClientModInitializer;
 
-@Mod(ViewBoardMod.MOD_ID)
-public final class ViewBoardMod {
+public final class ViewBoardMod implements ClientModInitializer {
     public static final String MOD_ID = "viewboard";
 
-    public ViewBoardMod() {
+    @Override
+    public void onInitializeClient() {
     }
 }

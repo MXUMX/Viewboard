@@ -1,5 +1,19 @@
 # ViewBoard
 
+## Port Status
+
+This branch (`codex/fabric-1.20.1-port`) is an attempted Fabric 1.20.1 port.
+
+Critical blocker:
+- The current implementation relies on NeoForge-only client controls APIs that do not exist on Fabric in the current single-source layout. The failed Fabric compile is blocked by:
+- `net.neoforged.neoforge.client.settings.KeyModifier` and NeoForge keybinding methods such as `setKeyModifierAndCode(...)` / `hasKeyModifierConflict(...)`
+- NeoForge screen lifecycle hooks in `ViewBoardClientEvents`
+- NeoForge-specific controls screen classes/package paths used by the controls integration bridge
+
+What this means:
+- A full-parity Fabric 1.20.1 port requires a dedicated platform compatibility layer or split source set, not just dependency/version changes.
+- The attempted Fabric build currently fails at compile time for those platform-specific APIs.
+
 [<img src="https://img.shields.io/modrinth/dt/xf9PORQx?logo=modrinth&style=for-the-badge" alt="Modrinth Downloads" />](https://modrinth.com/mod/viewboard)
 
 [<img src="https://img.shields.io/curseforge/dt/1485396?logo=curseforge&style=for-the-badge" alt="CurseForge Downloads" />](https://www.curseforge.com/minecraft/mc-mods/viewboard)

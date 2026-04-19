@@ -1,46 +1,43 @@
 plugins {
-    id 'java-library'
-    id 'net.neoforged.moddev' version '2.0.78'
+    id 'fabric-loom' version '1.6-SNAPSHOT'
+    id 'maven-publish'
 }
 
 version = mod_version
 group = mod_group_id
 
 base {
-    archivesName = "${mod_id}-neoforge-${minecraft_version}"
+    archivesName = "${mod_id}-fabric-${minecraft_version}"
 }
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(17)
     }
     withSourcesJar()
 }
 
-neoForge {
-    version = neo_version
-
-    runs {
-        client {
-            client()
-        }
+repositories {
+    maven {
+        name = 'Fabric'
+        url = 'https://maven.fabricmc.net/'
     }
+    mavenCentral()
+}
 
-    mods {
-        "${mod_id}" {
-            sourceSet sourceSets.main
-        }
-    }
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${loader_version}"
+
+    testImplementation 'com.google.code.gson:gson:2.10.1'
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
-}
-
-dependencies {
-    testImplementation 'com.google.code.gson:gson:2.10.1'
-    testImplementation platform('org.junit:junit-bom:5.10.2')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
+    options.release = 17
 }
 
 tasks.named('test', Test).configure {
@@ -55,10 +52,11 @@ tasks.named('processResources', ProcessResources).configure {
         mod_version    : mod_version,
         mod_authors    : mod_authors,
         mod_description: mod_description,
-        neo_version    : neo_version
+        minecraft_version: minecraft_version,
+        loader_version : loader_version
     ]
     inputs.properties(replaceProperties)
-    filesMatching(['META-INF/neoforge.mods.toml', 'pack.mcmeta']) {
+    filesMatching(['fabric.mod.json', 'pack.mcmeta']) {
         expand(replaceProperties)
     }
 }
