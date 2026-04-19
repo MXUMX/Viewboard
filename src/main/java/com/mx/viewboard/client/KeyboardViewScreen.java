@@ -1,16 +1,17 @@
 package com.mx.viewboard.client;
 
-import com.mx.viewboard.client.layout.KeyboardKey;
-import com.mx.viewboard.client.layout.KeyboardLayout;
-import com.mx.viewboard.client.layout.KeyboardSection;
 import com.mojang.blaze3d.platform.InputConstants;
+import com.mx.viewboard.client.keybind.SerializedKey;
+import com.mx.viewboard.client.keybind.ViewBoardKeybindRules;
+import com.mx.viewboard.client.layout.KeyboardLayout;
+import com.mx.viewboard.client.layout.KeyboardViewModel;
+import com.mx.viewboard.client.layout.VisualKey;
+import com.mx.viewboard.client.layout.VisualSection;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
@@ -21,15 +22,17 @@ public final class KeyboardViewScreen extends Screen {
     private static final int COLOR_SINGLE = 0xFF59D978;
     private static final int COLOR_CONFLICT = 0xFFE05252;
     private static final int COLOR_BORDER = 0xFF2B2B2B;
-    private static final int COLOR_PANEL = 0xF01A1A1A;
+    private static final int COLOR_PANEL = 0xF0181818;
     private static final int COLOR_SECTION = 0x662C2C2C;
     private static final int COLOR_TEXT_DARK = 0xFF000000;
     private static final int COLOR_TEXT_LIGHT = 0xFFFFFFFF;
+    private static final int COLOR_TEXT_SUBTLE = 0xFFB8B8B8;
 
     private final Screen parent;
-    private final Map<Integer, List<KeyMapping>> bindingsByKey = new HashMap<>();
-    private final List<KeyMapping> scancodeBindings = new ArrayList<>();
+    private final ViewBoardKeybindRules rules = ViewBoardKeybindRules.getInstance();
+    private KeyboardViewModel viewModel;
     private KeyBounds hoveredKey;
+    private Button layoutButton;
 
     public KeyboardViewScreen(Screen parent) {
         super(Component.translatable("viewboard.screen.title"));
@@ -38,11 +41,27 @@ public final class KeyboardViewScreen extends Screen {
 
     @Override
     protected void init() {
-        this.rebuildBindings();
-        this.addRenderableWidget(Button.builder(Component.translatable("gui.back"), button ->
-                this.onClose())
-            .bounds(this.width / 2 - 75, this.height - 28, 150, 20)
+        this.rules.ensureLoaded();
+        this.rules.syncRuntimeState();
+        this.rebuildViewModel();
+
+        int topButtonY = 36;
+        this.layoutButton = this.addRenderableWidget(Button.builder(Component.empty(), button -> {
+            this.rules.cycleLayout();
+            this.rebuildViewModel();
+            this.refreshButtons();
+        }).bounds(18, topButtonY, 120, 20).build());
+
+        this.addRenderableWidget(Button.builder(Component.translatable("viewboard.screen.manage"), button ->
+                Minecraft.getInstance().setScreen(new KeybindRulesScreen(this)))
+            .bounds(this.width / 2 - 60, topButtonY, 120, 20)
             .build());
+
+        this.addRenderableWidget(Button.builder(Component.translatable("gui.back"), button -> this.onClose())
+            .bounds(this.width - 138, topButtonY, 120, 20)
+            .build());
+
+        this.refreshButtons();
     }
 
     @Override
@@ -58,90 +77,66 @@ public final class KeyboardViewScreen extends Screen {
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         this.hoveredKey = null;
+        this.rules.syncRuntimeState();
         this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
         this.renderPanel(guiGraphics);
 
-        guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 10, COLOR_TEXT_LIGHT);
-        guiGraphics.drawCenteredString(this.font, Component.translatable("viewboard.screen.subtitle"), this.width / 2, 24, 0xFFB8B8B8);
-        this.renderLegend(guiGraphics);
-        this.renderKeyboard(guiGraphics, mouseX, mouseY);
-        if (!this.scancodeBindings.isEmpty()) {
-            guiGraphics.drawCenteredString(
-                this.font,
-                Component.translatable("viewboard.screen.scancode_note", this.scancodeBindings.size()),
-                this.width / 2,
-                this.height - 40,
-                0xFFE2C46B
-            );
-        }
+        guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 8, COLOR_TEXT_LIGHT);
+        guiGraphics.drawCenteredString(this.font, Component.translatable("viewboard.screen.subtitle"), this.width / 2, 18, COLOR_TEXT_SUBTLE);
+        int legendBottom = this.renderLegend(guiGraphics, 64);
+        this.renderKeyboard(guiGraphics, mouseX, mouseY, legendBottom + 10, this.height - 54);
 
-        for (var renderable : this.renderables) {
-            renderable.render(guiGraphics, mouseX, mouseY, partialTick);
-        }
+        super.render(guiGraphics, mouseX, mouseY, partialTick);
 
         if (this.hoveredKey != null) {
             guiGraphics.renderComponentTooltip(this.font, this.createTooltip(this.hoveredKey.key()), mouseX, mouseY);
         }
     }
 
-    @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (keyCode == 256) {
-            this.onClose();
-            return true;
-        }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+    private void rebuildViewModel() {
+        KeyboardViewModel baseModel = KeyboardLayout.build(this.rules.selectedLayout(), List.of());
+        List<SerializedKey> customKeys = this.rules.customKeysForLayout(baseModel.representedKeys());
+        this.viewModel = KeyboardLayout.build(this.rules.selectedLayout(), customKeys);
     }
 
-    private void rebuildBindings() {
-        this.bindingsByKey.clear();
-        this.scancodeBindings.clear();
-        for (KeyMapping mapping : Minecraft.getInstance().options.keyMappings) {
-            InputConstants.Key key = mapping.getKey();
-            if (key.getType() == InputConstants.Type.SCANCODE) {
-                this.scancodeBindings.add(mapping);
-                continue;
-            }
-
-            if (key.getType() != InputConstants.Type.KEYSYM) {
-                continue;
-            }
-
-            this.bindingsByKey.computeIfAbsent(key.getValue(), unused -> new ArrayList<>()).add(mapping);
-        }
-
-        for (List<KeyMapping> mappings : this.bindingsByKey.values()) {
-            mappings.sort(Comparator
-                .comparing((KeyMapping mapping) -> Component.translatable(mapping.getCategory()).getString())
-                .thenComparing(mapping -> Component.translatable(mapping.getName()).getString()));
-        }
+    private void refreshButtons() {
+        this.layoutButton.setMessage(Component.translatable("viewboard.screen.layout", Component.literal(this.rules.selectedLayout().displayName())));
     }
 
-    private void renderLegend(GuiGraphics guiGraphics) {
-        int legendY = 42;
-        Component[] labels = new Component[] {
-            Component.translatable("viewboard.legend.single"),
-            Component.translatable("viewboard.legend.conflict"),
-            Component.translatable("viewboard.legend.unused")
+    private void renderPanel(GuiGraphics guiGraphics) {
+        int left = 12;
+        int top = 30;
+        int right = this.width - 12;
+        int bottom = this.height - 34;
+        guiGraphics.fill(left, top, right, bottom, COLOR_PANEL);
+        guiGraphics.fill(left, top, right, top + 1, COLOR_BORDER);
+        guiGraphics.fill(left, bottom - 1, right, bottom, COLOR_BORDER);
+        guiGraphics.fill(left, top, left + 1, bottom, COLOR_BORDER);
+        guiGraphics.fill(right - 1, top, right, bottom, COLOR_BORDER);
+    }
+
+    private int renderLegend(GuiGraphics guiGraphics, int startY) {
+        LegendItem[] items = new LegendItem[] {
+            new LegendItem(COLOR_SINGLE, Component.translatable("viewboard.legend.single")),
+            new LegendItem(COLOR_CONFLICT, Component.translatable("viewboard.legend.conflict")),
+            new LegendItem(COLOR_UNUSED, Component.translatable("viewboard.legend.unused"))
         };
-        int[] colors = new int[] {COLOR_SINGLE, COLOR_CONFLICT, COLOR_UNUSED};
-        int chipWidth = 12;
-        int textGap = 8;
-        int panelLeft = 28;
-        int panelRight = this.width - 28;
-        int totalItemWidth = 0;
 
-        for (Component label : labels) {
-            totalItemWidth += chipWidth + textGap + this.font.width(label);
+        int x = 24;
+        int y = startY;
+        int maxX = this.width - 24;
+        for (LegendItem item : items) {
+            int itemWidth = 20 + this.font.width(item.text()) + 12;
+            if (x + itemWidth > maxX) {
+                x = 24;
+                y += 16;
+            }
+
+            this.drawLegendChip(guiGraphics, x, y, item.color(), item.text());
+            x += itemWidth;
         }
 
-        int spacing = Math.max(18, (panelRight - panelLeft - totalItemWidth) / 4);
-        int x = panelLeft + spacing;
-        for (int i = 0; i < labels.length; i++) {
-            int itemWidth = chipWidth + textGap + this.font.width(labels[i]);
-            this.drawLegendChip(guiGraphics, x, legendY, colors[i], labels[i]);
-            x += itemWidth + spacing;
-        }
+        return y + 14;
     }
 
     private void drawLegendChip(GuiGraphics guiGraphics, int x, int y, int color, Component text) {
@@ -150,34 +145,22 @@ public final class KeyboardViewScreen extends Screen {
         guiGraphics.fill(x, y + 11, x + 12, y + 12, COLOR_BORDER);
         guiGraphics.fill(x, y, x + 1, y + 12, COLOR_BORDER);
         guiGraphics.fill(x + 11, y, x + 12, y + 12, COLOR_BORDER);
-        guiGraphics.drawString(this.font, text, x + 18, y + 2, COLOR_TEXT_LIGHT);
+        guiGraphics.drawString(this.font, text, x + 18, y + 2, COLOR_TEXT_LIGHT, false);
     }
 
-    private void renderPanel(GuiGraphics guiGraphics) {
-        int left = 14;
-        int top = 36;
-        int right = this.width - 14;
-        int bottom = this.height - 48;
-        guiGraphics.fill(left, top, right, bottom, COLOR_PANEL);
-        guiGraphics.fill(left, top, right, top + 1, COLOR_BORDER);
-        guiGraphics.fill(left, bottom - 1, right, bottom, COLOR_BORDER);
-        guiGraphics.fill(left, top, left + 1, bottom, COLOR_BORDER);
-        guiGraphics.fill(right - 1, top, right, bottom, COLOR_BORDER);
-    }
-
-    private void renderKeyboard(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-        float availableWidth = this.width - 52.0F;
-        float availableHeight = this.height - 132.0F;
-        int unitSize = Math.max(14, (int) Math.floor(Math.min(
-            availableWidth / KeyboardLayout.totalWidthUnits(),
-            availableHeight / KeyboardLayout.totalHeightUnits()
+    private void renderKeyboard(GuiGraphics guiGraphics, int mouseX, int mouseY, int contentTop, int contentBottom) {
+        float availableWidth = this.width - 44.0F;
+        float availableHeight = Math.max(60.0F, contentBottom - contentTop - 6.0F);
+        int unitSize = Math.max(10, (int) Math.floor(Math.min(
+            availableWidth / this.viewModel.totalWidthUnits(),
+            availableHeight / this.viewModel.totalHeightUnits()
         )));
-        int keyboardWidth = Math.round(KeyboardLayout.totalWidthUnits() * unitSize);
-        int keyboardHeight = Math.round(KeyboardLayout.totalHeightUnits() * unitSize);
-        int startX = (this.width - keyboardWidth) / 2;
-        int startY = 58;
+        int keyboardWidth = Math.round(this.viewModel.totalWidthUnits() * unitSize);
+        int keyboardHeight = Math.round(this.viewModel.totalHeightUnits() * unitSize);
+        int startX = Math.max(18, (this.width - keyboardWidth) / 2);
+        int startY = contentTop + Math.max(0, ((contentBottom - contentTop) - keyboardHeight) / 2);
 
-        for (KeyboardSection section : KeyboardLayout.sections()) {
+        for (VisualSection section : this.viewModel.sections()) {
             int x = startX + Math.round(section.xUnits() * unitSize);
             int y = startY + Math.round(section.yUnits() * unitSize);
             int width = Math.round(section.widthUnits() * unitSize);
@@ -190,22 +173,21 @@ public final class KeyboardViewScreen extends Screen {
             guiGraphics.fill(x + width - 1, y, x + width, y + height, COLOR_BORDER);
         }
 
-        for (KeyboardKey key : KeyboardLayout.keys()) {
+        for (VisualKey key : this.viewModel.keys()) {
             int x = startX + Math.round(key.xUnits() * unitSize);
             int y = startY + Math.round(key.yUnits() * unitSize);
-            int keyWidth = Math.max(18, Math.round(key.widthUnits() * unitSize));
-            int keyHeight = Math.max(18, unitSize);
-            int color = this.getKeyColor(key.keyCode());
+            int keyWidth = Math.max(16, Math.round(key.widthUnits() * unitSize));
+            int keyHeight = Math.max(16, Math.round(key.heightUnits() * unitSize));
+            int color = this.getKeyColor(key.key().toInputKey());
             int textColor = color == COLOR_UNUSED ? COLOR_TEXT_DARK : COLOR_TEXT_LIGHT;
-            int textX = x + (keyWidth - this.font.width(key.label())) / 2;
-            int textY = y + (keyHeight - this.font.lineHeight) / 2;
 
             guiGraphics.fill(x, y, x + keyWidth, y + keyHeight, color);
             guiGraphics.fill(x, y, x + keyWidth, y + 1, COLOR_BORDER);
             guiGraphics.fill(x, y + keyHeight - 1, x + keyWidth, y + keyHeight, COLOR_BORDER);
             guiGraphics.fill(x, y, x + 1, y + keyHeight, COLOR_BORDER);
             guiGraphics.fill(x + keyWidth - 1, y, x + keyWidth, y + keyHeight, COLOR_BORDER);
-            guiGraphics.drawString(this.font, key.label(), textX, textY, textColor, false);
+
+            this.drawFittedLabel(guiGraphics, this.font, key.label(), x, y, keyWidth, keyHeight, textColor);
 
             if (mouseX >= x && mouseX < x + keyWidth && mouseY >= y && mouseY < y + keyHeight) {
                 this.hoveredKey = new KeyBounds(key, x, y, keyWidth, keyHeight);
@@ -213,35 +195,87 @@ public final class KeyboardViewScreen extends Screen {
         }
     }
 
-    private int getKeyColor(int keyCode) {
-        int usageCount = this.bindingsByKey.getOrDefault(keyCode, List.of()).size();
-        if (usageCount == 0) {
-            return COLOR_UNUSED;
+    private void drawFittedLabel(GuiGraphics guiGraphics, Font font, String label, int x, int y, int width, int height, int color) {
+        String renderLabel = label;
+        float scale = 1.0F;
+        for (int attempt = 0; attempt < 2; attempt++) {
+            int textWidth = font.width(renderLabel);
+            float widthScale = (width - 4.0F) / Math.max(1.0F, (float) textWidth);
+            float heightScale = (height - 4.0F) / Math.max(1.0F, (float) font.lineHeight);
+            scale = Math.min(1.0F, Math.min(widthScale, heightScale));
+
+            // If the label is extremely small, prefer a short fallback in the cell.
+            if (attempt == 0 && scale < 0.35F && renderLabel.length() > 4) {
+                renderLabel = renderLabel.substring(0, Math.min(3, renderLabel.length()));
+                continue;
+            }
+            if (scale < 0.25F) {
+                renderLabel = "…";
+                textWidth = font.width(renderLabel);
+                widthScale = (width - 4.0F) / Math.max(1.0F, (float) textWidth);
+                heightScale = (height - 4.0F) / Math.max(1.0F, (float) font.lineHeight);
+                scale = Math.min(1.0F, Math.min(widthScale, heightScale));
+            }
+            break;
         }
-        return usageCount == 1 ? COLOR_SINGLE : COLOR_CONFLICT;
+
+        int finalWidth = font.width(renderLabel);
+        float drawX = x + (width - finalWidth * scale) / 2.0F;
+        float drawY = y + (height - font.lineHeight * scale) / 2.0F;
+
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().translate(drawX, drawY, 0.0F);
+        guiGraphics.pose().scale(scale, scale, 1.0F);
+        guiGraphics.drawString(font, renderLabel, 0, 0, color, false);
+        guiGraphics.pose().popPose();
     }
 
-    private List<Component> createTooltip(KeyboardKey key) {
+    private int getKeyColor(InputConstants.Key key) {
+        ViewBoardKeybindRules.KeyUsageSummary summary = this.rules.usageFor(key);
+        if (summary.states().isEmpty()) {
+            return COLOR_UNUSED;
+        }
+        return summary.conflict() ? COLOR_CONFLICT : COLOR_SINGLE;
+    }
+
+    private List<Component> createTooltip(VisualKey key) {
         List<Component> tooltip = new ArrayList<>();
-        List<KeyMapping> mappings = this.bindingsByKey.getOrDefault(key.keyCode(), List.of());
+        ViewBoardKeybindRules.KeyUsageSummary summary = this.rules.usageFor(key.key().toInputKey());
 
         tooltip.add(Component.literal(key.label()));
-        if (mappings.isEmpty()) {
+        if (summary.states().isEmpty()) {
             tooltip.add(Component.translatable("viewboard.tooltip.unused"));
             return tooltip;
         }
 
         tooltip.add(Component.translatable(
-            mappings.size() == 1 ? "viewboard.tooltip.single" : "viewboard.tooltip.multiple",
-            mappings.size()));
-        for (KeyMapping mapping : mappings) {
-            tooltip.add(Component.literal(
-                Component.translatable(mapping.getCategory()).getString() + " - " +
-                    Component.translatable(mapping.getName()).getString()));
+            summary.states().size() == 1 ? "viewboard.tooltip.single" : "viewboard.tooltip.multiple",
+            summary.states().size()));
+
+        for (ViewBoardKeybindRules.KeyBindingState state : summary.states()) {
+            StringBuilder line = new StringBuilder();
+            line.append(Component.translatable(ViewBoardKeybindRules.categoryString(state.mapping())).getString());
+            line.append(" - ");
+            line.append(Component.translatable(state.mapping().getName()).getString());
+            if (state.ignored()) {
+                line.append(" [");
+                line.append(Component.translatable("viewboard.tooltip.ignored").getString());
+                line.append("]");
+            }
+            if (state.groupName() != null) {
+                line.append(" [");
+                line.append(Component.translatable("viewboard.tooltip.group", Component.literal(state.groupName())).getString());
+                line.append("]");
+            }
+            tooltip.add(Component.literal(line.toString()));
         }
+
         return tooltip;
     }
 
-    private record KeyBounds(KeyboardKey key, int x, int y, int width, int height) {
+    private record LegendItem(int color, Component text) {
+    }
+
+    private record KeyBounds(VisualKey key, int x, int y, int width, int height) {
     }
 }
