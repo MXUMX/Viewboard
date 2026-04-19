@@ -1,12 +1,25 @@
 # ViewBoard
 
+## Port Status
+
+This branch (`codex/neoforge-26.1.1-port`) is an attempted NeoForge `26.1.1` port.
+
+Critical blocker:
+- The Gradle/NeoForge toolchain could not resolve `net.neoforged:neoforge:26.1.1`.
+- The attempted resolution URL was `https://maven.neoforged.net/releases/net/neoforged/neoforge/26.1.1/neoforge-26.1.1.pom`
+- During configuration, the toolchain also failed to map `26.1.1` cleanly and reported:
+- `Failed to parse MC version from NeoForge version 26.1.1. Using capabilities of latest known Minecraft version with Minecraft version 1.26.1.`
+
+What this means:
+- I could not complete a compile attempt for this target in the current environment because the requested upstream NeoForge artifact was unavailable and the version line could not be mapped cleanly by the tooling.
+
 [<img src="https://img.shields.io/modrinth/dt/xf9PORQx?logo=modrinth&style=for-the-badge" alt="Modrinth Downloads" />](https://modrinth.com/mod/viewboard)
 
 [<img src="https://img.shields.io/curseforge/dt/1485396?logo=curseforge&style=for-the-badge" alt="CurseForge Downloads" />](https://www.curseforge.com/minecraft/mc-mods/viewboard)
 
-ViewBoard is a client-side NeoForge mod for Minecraft 1.21.1 that adds a keyboard map screen and keybind-management tools to the controls menu. The screens help show which keys are used, conflicting, ignored, grouped, or still free.
+ViewBoard is an attempted NeoForge `26.1.1` port.
 
-This branch (`neoforge-1.21.1-1.21.5`) targets Minecraft `1.21.1` on NeoForge `21.1.172`.
+This branch (`codex/neoforge-26.1.1-port`) is reserved for the NeoForge `26.1.1` port attempt.
 
 ViewBoard supports most GUI scales, but the keyboard view is currently most comfortable at GUI scale `3` or below.
 
