@@ -83,10 +83,14 @@ public final class ViewBoardKeybindRules {
     }
 
     public KeybindGroupConfig createGroup(String baseName, SerializedKey triggerKey) {
+        return this.createGroup(baseName, triggerKey, KeyModifier.NONE);
+    }
+
+    public KeybindGroupConfig createGroup(String baseName, SerializedKey triggerKey, KeyModifier triggerModifier) {
         this.ensureLoaded();
         String suffix = Integer.toHexString(UUID.randomUUID().hashCode()).toLowerCase(Locale.ROOT);
         String groupId = "group-" + suffix;
-        KeybindGroupConfig group = new KeybindGroupConfig(groupId, baseName, triggerKey.asConfigString());
+        KeybindGroupConfig group = new KeybindGroupConfig(groupId, baseName, triggerKey.asConfigString(), safeModifier(triggerModifier).name());
         this.config.groups().add(group);
         this.save();
         return group;
@@ -118,8 +122,13 @@ public final class ViewBoardKeybindRules {
     }
 
     public void setGroupTrigger(String groupId, SerializedKey triggerKey) {
+        this.setGroupTrigger(groupId, triggerKey, KeyModifier.NONE);
+    }
+
+    public void setGroupTrigger(String groupId, SerializedKey triggerKey, KeyModifier triggerModifier) {
         this.findGroup(groupId).ifPresent(group -> {
             group.setTriggerKey(triggerKey.asConfigString());
+            group.setTriggerModifier(safeModifier(triggerModifier).name());
             this.applyGroupMembers(group);
             this.save();
         });
@@ -175,6 +184,7 @@ public final class ViewBoardKeybindRules {
         try {
             for (KeybindGroupConfig group : this.config.groups()) {
                 SerializedKey trigger = SerializedKey.parse(group.triggerKey());
+                KeyModifier triggerModifier = this.groupTriggerModifier(group);
                 for (KeybindMemberConfig member : group.members()) {
                     KeyMapping mapping = this.resolveKeyMapping(member.keybindId()).orElse(null);
                     if (mapping == null) {
@@ -186,10 +196,9 @@ public final class ViewBoardKeybindRules {
                     SerializedKey originalKey = SerializedKey.parse(member.originalKey());
                     KeyModifier originalModifier = parseModifier(member.originalModifier());
 
-                    if (!currentKey.equals(trigger) && !currentKey.equals(originalKey)) {
+                    if (!sameBinding(currentKey, currentModifier, trigger, triggerModifier)
+                        && !sameBinding(currentKey, currentModifier, originalKey, originalModifier)) {
                         member.setOriginalKey(currentKey.asConfigString());
-                        member.setOriginalModifier(currentModifier.name());
-                    } else if (currentKey.equals(trigger) && currentModifier != KeyModifier.NONE) {
                         member.setOriginalModifier(currentModifier.name());
                     }
 
@@ -219,6 +228,7 @@ public final class ViewBoardKeybindRules {
                 mapping.getName(),
                 mapping,
                 SerializedKey.fromInputKey(mapping.getKey()),
+                mapping.getKeyModifier(),
                 this.isIgnored(mapping),
                 group.map(KeybindGroupConfig::id).orElse(null),
                 group.map(KeybindGroupConfig::name).orElse(null)
@@ -313,8 +323,12 @@ public final class ViewBoardKeybindRules {
     }
 
     private void applyGroupMember(KeyMapping mapping, KeybindGroupConfig group, KeybindMemberConfig member) {
-        mapping.setKeyModifierAndCode(KeyModifier.NONE, SerializedKey.parse(group.triggerKey()).toInputKey());
+        mapping.setKeyModifierAndCode(this.groupTriggerModifier(group), SerializedKey.parse(group.triggerKey()).toInputKey());
         KeyMapping.resetMapping();
+    }
+
+    private KeyModifier groupTriggerModifier(KeybindGroupConfig group) {
+        return parseModifier(group.triggerModifier());
     }
 
     private Optional<KeybindGroupConfig> findGroup(String groupId) {
@@ -330,7 +344,7 @@ public final class ViewBoardKeybindRules {
         return Optional.empty();
     }
 
-    private static KeyModifier parseModifier(String raw) {
+    public static KeyModifier parseModifier(String raw) {
         if (raw == null || raw.isBlank()) {
             return KeyModifier.NONE;
         }
@@ -342,10 +356,25 @@ public final class ViewBoardKeybindRules {
         }
     }
 
+    public static String displayBindingLabel(SerializedKey key, KeyModifier modifier) {
+        SerializedKey safeKey = key == null ? SerializedKey.fromInputKey(InputConstants.UNKNOWN) : key;
+        KeyModifier safeModifier = safeModifier(modifier);
+        return safeModifier.getCombinedName(safeKey.toInputKey(), () -> safeKey.toInputKey().getDisplayName()).getString();
+    }
+
+    private static boolean sameBinding(SerializedKey leftKey, KeyModifier leftModifier, SerializedKey rightKey, KeyModifier rightModifier) {
+        return Objects.equals(leftKey, rightKey) && safeModifier(leftModifier) == safeModifier(rightModifier);
+    }
+
+    private static KeyModifier safeModifier(KeyModifier modifier) {
+        return modifier == null ? KeyModifier.NONE : modifier;
+    }
+
     public record KeyBindingState(
         String keybindId,
         KeyMapping mapping,
         SerializedKey effectiveKey,
+        KeyModifier effectiveModifier,
         boolean ignored,
         String groupId,
         String groupName

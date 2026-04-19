@@ -7,6 +7,7 @@ public final class KeybindGroupConfig {
     private String id;
     private String name;
     private String triggerKey;
+    private String triggerModifier = "NONE";
     private final List<KeybindMemberConfig> members = new ArrayList<>();
 
     public KeybindGroupConfig() {
@@ -16,6 +17,13 @@ public final class KeybindGroupConfig {
         this.id = id;
         this.name = name;
         this.triggerKey = triggerKey;
+    }
+
+    public KeybindGroupConfig(String id, String name, String triggerKey, String triggerModifier) {
+        this.id = id;
+        this.name = name;
+        this.triggerKey = triggerKey;
+        this.triggerModifier = triggerModifier;
     }
 
     public String id() {
@@ -36,6 +44,14 @@ public final class KeybindGroupConfig {
 
     public void setTriggerKey(String triggerKey) {
         this.triggerKey = triggerKey;
+    }
+
+    public String triggerModifier() {
+        return this.triggerModifier;
+    }
+
+    public void setTriggerModifier(String triggerModifier) {
+        this.triggerModifier = triggerModifier;
     }
 
     public List<KeybindMemberConfig> members() {
