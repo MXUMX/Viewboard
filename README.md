@@ -4,7 +4,7 @@
 
 ViewBoard is a client-side NeoForge mod for Minecraft 1.21.1 that adds a keyboard map screen and keybind-management tools to the controls menu. The screens help show which keys are used, conflicting, ignored, grouped, or still free.
 
-This branch (`neoforge-1.21.1-1.21.5`) targets Minecraft `1.21.1` on NeoForge `21.1.172`.
+This branch (`neoforge-1.21.1-1.21.3`) targets Minecraft `1.21.1` (compatible through `1.21.3`) on NeoForge `21.1.172`.
 
 ViewBoard supports most GUI scales, but the keyboard view is currently most comfortable at GUI scale `3` or below.
 
