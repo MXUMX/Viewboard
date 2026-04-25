@@ -107,11 +107,11 @@ jobs:
           echo "$VERSIONS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Find JAR files
-        id: find_jars
+      - name: Prepare JAR files for upload
         run: |
-          JARS=$(find build/libs -name "*.jar" -not -name "*-sources.jar" | tr '\n' ';')
-          echo "jars=$JARS" >> $GITHUB_OUTPUT
+          mkdir -p upload
+          cp build/libs/*.jar upload/ 2>/dev/null || true
+          rm -f upload/*-sources.jar
 
       - name: Publish to CurseForge
         uses: Kir-Antipov/mc-publish@v3.3
@@ -119,7 +119,7 @@ jobs:
           curseforge-id: 1485396
           curseforge-token: ${{ secrets.CURSEFORGE_API_KEY }}
 
-          files: ${{ steps.find_jars.outputs.jars }}
+          files: upload/*.jar
 
           name: ViewBoard ${{ steps.get_version.outputs.version }} for ${{ github.ref_name }}
           version: ${{ steps.get_version.outputs.version }}
