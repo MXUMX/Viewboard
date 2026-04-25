@@ -44,9 +44,10 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: build/libs/*.jar
-          tag_name: ${{ github.ref_name }}-${{ github.run_number }}
+          tag_name: ${{ github.ref_name }}-${{ github.run_id }}
+          name: Release ${{ github.ref_name }} (${{ github.run_number }})
           draft: false
-          prerelease: false
+          prerelease: ${{ github.ref_name != 'neoforge-1.21.11' }}
 
   dependency-submission:
     runs-on: ubuntu-latest
