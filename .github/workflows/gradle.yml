@@ -107,13 +107,37 @@ jobs:
           echo "$VERSIONS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Publish to CurseForge
+      - name: Prepare JAR files for upload
+        run: |
+          mkdir -p upload
+          find build/libs -name "*.jar" ! -name "*sources.jar" ! -name "*javadoc.jar" -exec cp {} upload/ \;
+          rm -f upload/*-sources.jar
+
+      - name: Check jar contents
+        run: |
+          for f in upload/*.jar; do
+            echo "Checking $f"
+            jar tf "$f" | head
+          done
+
+      - name: Debug outputs
+        run: |
+          echo "Loader: '${{ steps.branch.outputs.loader }}'"
+          echo "Versions:"
+          echo "${{ steps.branch.outputs.versions }}"
+
+      - name: Publish to CurseForge & Modrinth
         uses: Kir-Antipov/mc-publish@v3.3
         with:
+          # CurseForge
           curseforge-id: 1485396
           curseforge-token: ${{ secrets.CURSEFORGE_API_KEY }}
 
-          files: build/libs/*.jar
+          # 🆕 Modrinth
+          modrinth-id: xf9PORQx
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+
+          files: upload/*.jar
 
           name: ViewBoard ${{ steps.get_version.outputs.version }} for ${{ github.ref_name }}
           version: ${{ steps.get_version.outputs.version }}
@@ -122,14 +146,13 @@ jobs:
             ## Changes
             ${{ steps.commits.outputs.commits }}
 
-          release-type: release
           loaders: |
             ${{ steps.branch.outputs.loader }}
 
           game-versions: |
             ${{ steps.branch.outputs.versions }}
 
-          curseforge-release-type: release
+          version-type: release
 
   dependency-submission:
     runs-on: ubuntu-latest
