@@ -2,34 +2,28 @@
 
 ## Port Status
 
-This branch (`codex/forge-1.20.1-port`) is an attempted Forge 1.20.1 port.
+This branch (`codex/forge-1.20.1-port`) targets Minecraft 1.20.1 on Forge.
 
-Critical blocker:
-- The Forge 1.20.1 build reaches Java compilation, but the current source tree is tightly coupled to NeoForge and 1.21-era APIs that are not present on Forge 1.20.1.
-- The failed compile is blocked by missing NeoForge-only types such as:
-- `net.neoforged.neoforge.client.settings.KeyModifier`
-- `net.neoforged.neoforge.client.event.ScreenEvent`
-- `net.neoforged.fml.common.EventBusSubscriber`
-- It also hits GUI API drift between 1.21 and 1.20.1, including controls-screen package changes and list/screen method signature differences.
-
-What this means:
-- A full-parity Forge 1.20.1 port requires a dedicated Forge compatibility layer or split source set instead of a straight dependency/build-script swap.
+Verified build target:
+- Minecraft `1.20.1`
+- Forge `47.3.0`
+- Java `17`
 
 [<img src="https://img.shields.io/modrinth/dt/xf9PORQx?logo=modrinth&style=for-the-badge" alt="Modrinth Downloads" />](https://modrinth.com/mod/viewboard)
 
 [<img src="https://img.shields.io/curseforge/dt/1485396?logo=curseforge&style=for-the-badge" alt="CurseForge Downloads" />](https://www.curseforge.com/minecraft/mc-mods/viewboard)
 
-ViewBoard is a client-side NeoForge mod for Minecraft 1.21.1 that adds a keyboard map screen and keybind-management tools to the controls menu. The screens help show which keys are used, conflicting, ignored, grouped, or still free.
+ViewBoard is a client-side Forge mod for Minecraft 1.20.1 that adds a keyboard map screen and keybind-management tools to the controls menu. The screens help show which keys are used, conflicting, ignored, grouped, or still free.
 
-This branch (`neoforge-1.21.1-1.21.5`) targets Minecraft `1.21.1` on NeoForge `21.1.172`.
+This branch (`codex/forge-1.20.1-port`) targets Minecraft `1.20.1` on Forge `47.3.0`.
 
 ViewBoard supports most GUI scales, but the keyboard view is currently most comfortable at GUI scale `3` or below.
 
 ## Requirements
 
-- Java 21
-- Minecraft 1.21.1
-- NeoForge 21.1.172
+- Java 17
+- Minecraft 1.20.1
+- Forge 47.3.0
 
 ## New Features
 
@@ -68,22 +62,22 @@ build/libs/
 The build produces both the mod jar and a matching `-sources` jar. The generated filenames follow this pattern:
 
 ```text
-viewboard-neoforge-<minecraft-version>-<mod-version>.jar
-viewboard-neoforge-<minecraft-version>-<mod-version>-sources.jar
+viewboard-forge-<minecraft-version>-<mod-version>.jar
+viewboard-forge-<minecraft-version>-<mod-version>-sources.jar
 ```
 
 For example:
 
 ```text
-viewboard-neoforge-1.21.1-1.1.0.jar
-viewboard-neoforge-1.21.1-1.1.0-sources.jar
+viewboard-forge-1.20.1-1.1.0.jar
+viewboard-forge-1.20.1-1.1.0-sources.jar
 ```
 
 ## Project Layout
 
 - `src/main/java` contains the mod source code
 - `src/main/resources` contains metadata and assets
-- `build.gradle` and `gradle.properties` define the NeoForge build
+- `build.gradle` and `gradle.properties` define the Forge build
 
 ## Mod ID
 
