@@ -110,8 +110,11 @@ jobs:
       - name: Prepare JAR files for upload
         run: |
           mkdir -p upload
-          cp build/libs/*.jar upload/ 2>/dev/null || true
+          find build/libs -name "*.jar" ! -name "*sources.jar" ! -name "*javadoc.jar" -exec cp {} upload/ \;
           rm -f upload/*-sources.jar
+
+      - name: Check jar contents
+        run: jar tf upload/*.jar | head
 
       - name: Publish to CurseForge
         uses: Kir-Antipov/mc-publish@v3.3
