@@ -122,14 +122,13 @@ jobs:
             ## Changes
             ${{ steps.commits.outputs.commits }}
 
-          release-type: release
           loaders: |
             ${{ steps.branch.outputs.loader }}
 
           game-versions: |
             ${{ steps.branch.outputs.versions }}
 
-          curseforge-release-type: release
+          version-type: release
 
   dependency-submission:
     runs-on: ubuntu-latest
