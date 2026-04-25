@@ -35,6 +35,12 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Extract version from gradle.properties
+        id: get_version
+        run: |
+          VERSION=$(grep "^mod_version=" gradle.properties | cut -d'=' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
       # Build project
       - name: Build with Gradle
         run: ./gradlew build --no-daemon
@@ -45,9 +51,10 @@ jobs:
         with:
           files: build/libs/*.jar
           tag_name: ${{ github.ref_name }}-${{ github.run_id }}
-          name: Release ${{ github.ref_name }} (${{ github.run_number }})
+          name: ViewBoard ${{ steps.get_version.outputs.version }} for ${{ github.ref_name }}
+          target_commitish: ${{ github.ref_name }}
           draft: false
-          prerelease: ${{ github.ref_name != 'neoforge-1.21.11' }}
+          prerelease: false
 
   dependency-submission:
     runs-on: ubuntu-latest
