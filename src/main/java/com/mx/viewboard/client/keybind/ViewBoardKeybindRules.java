@@ -17,7 +17,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.neoforged.neoforge.client.settings.KeyModifier;
+import net.minecraftforge.client.settings.KeyModifier;
 
 public final class ViewBoardKeybindRules {
     private static final ViewBoardKeybindRules INSTANCE = new ViewBoardKeybindRules();

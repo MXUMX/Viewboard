@@ -1,6 +1,6 @@
 plugins {
     id 'java-library'
-    id 'net.neoforged.moddev' version '2.0.78'
+    id 'net.neoforged.moddev.legacyforge' version '2.0.141'
 }
 
 version = mod_version
@@ -12,13 +12,15 @@ base {
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(17)
     }
     withSourcesJar()
 }
 
-neoForge {
-    version = neo_version
+legacyForge {
+    enable {
+        neoForgeVersion = neo_version
+    }
 
     runs {
         client {
@@ -35,6 +37,7 @@ neoForge {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+    options.release = 17
 }
 
 dependencies {
@@ -58,7 +61,7 @@ tasks.named('processResources', ProcessResources).configure {
         neo_version    : neo_version
     ]
     inputs.properties(replaceProperties)
-    filesMatching(['META-INF/neoforge.mods.toml', 'pack.mcmeta']) {
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
         expand(replaceProperties)
     }
 }

@@ -70,15 +70,15 @@ public final class KeyboardViewScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        this.renderMenuBackground(guiGraphics);
+    public void renderBackground(GuiGraphics guiGraphics) {
+        super.renderBackground(guiGraphics);
     }
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         this.hoveredKey = null;
         this.rules.syncRuntimeState();
-        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
+        this.renderBackground(guiGraphics);
         this.renderPanel(guiGraphics);
 
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 8, COLOR_TEXT_LIGHT);

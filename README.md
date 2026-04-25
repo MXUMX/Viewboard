@@ -2,32 +2,28 @@
 
 ## Port Status
 
-This branch (`codex/neoforge-1.20.1-port`) is an attempted NeoForge 1.20.1 port.
+This branch (`codex/neoforge-1.20.1-port`) targets Minecraft 1.20.1 using NeoForge's legacy Forge-compatible artifact line.
 
-Critical blocker:
-- The build attempt fails during dependency resolution because the requested NeoForge artifact could not be found:
-- `Could not find net.neoforged:neoforge:20.1.0`
-- The attempted resolution URL was `https://maven.neoforged.net/releases/net/neoforged/neoforge/20.1.0/neoforge-20.1.0.pom`
-
-What this means:
-- I could not complete a compile attempt for NeoForge 1.20.1 in this environment because the required upstream artifact was unavailable to Gradle.
-- There are also no cached `20.1.x` NeoForge artifacts available locally to fall back to.
+Verified build target:
+- Minecraft `1.20.1`
+- NeoForge legacy artifact `1.20.1-47.1.106`
+- Java `17`
 
 [<img src="https://img.shields.io/modrinth/dt/xf9PORQx?logo=modrinth&style=for-the-badge" alt="Modrinth Downloads" />](https://modrinth.com/mod/viewboard)
 
 [<img src="https://img.shields.io/curseforge/dt/1485396?logo=curseforge&style=for-the-badge" alt="CurseForge Downloads" />](https://www.curseforge.com/minecraft/mc-mods/viewboard)
 
-ViewBoard is an attempted client-side NeoForge mod port for Minecraft 1.20.1.
+ViewBoard is a client-side NeoForge mod port for Minecraft 1.20.1.
 
-This branch (`codex/neoforge-1.20.1-port`) is reserved for the NeoForge 1.20.1 port attempt.
+This branch (`codex/neoforge-1.20.1-port`) is reserved for the NeoForge 1.20.1 port.
 
 ViewBoard supports most GUI scales, but the keyboard view is currently most comfortable at GUI scale `3` or below.
 
 ## Requirements
 
-- Java 21
-- Minecraft 1.21.1
-- NeoForge 21.1.172
+- Java 17
+- Minecraft 1.20.1
+- NeoForge legacy artifact 1.20.1-47.1.106
 
 ## New Features
 
@@ -73,8 +69,8 @@ viewboard-neoforge-<minecraft-version>-<mod-version>-sources.jar
 For example:
 
 ```text
-viewboard-neoforge-1.21.1-1.1.0.jar
-viewboard-neoforge-1.21.1-1.1.0-sources.jar
+viewboard-neoforge-1.20.1-1.1.0.jar
+viewboard-neoforge-1.20.1-1.1.0-sources.jar
 ```
 
 ## Project Layout

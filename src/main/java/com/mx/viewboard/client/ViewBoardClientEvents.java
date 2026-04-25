@@ -8,16 +8,16 @@ import java.util.WeakHashMap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
-import net.minecraft.client.gui.screens.options.controls.KeyBindsList;
+import net.minecraft.client.gui.screens.controls.KeyBindsScreen;
+import net.minecraft.client.gui.screens.controls.KeyBindsList;
 import net.minecraft.network.chat.Component;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.client.event.ClientTickEvent;
-import net.neoforged.neoforge.client.event.ScreenEvent;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.ScreenEvent;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 
-@EventBusSubscriber(modid = ViewBoardMod.MOD_ID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.GAME)
+@Mod.EventBusSubscriber(modid = ViewBoardMod.MOD_ID, value = Dist.CLIENT)
 public final class ViewBoardClientEvents {
 
     private static final Map<KeyBindsScreen, Button> KEYBOARD_VIEW_BUTTONS = new WeakHashMap<>();
@@ -89,10 +89,10 @@ public final class ViewBoardClientEvents {
     }
 
     @SubscribeEvent
-    public static void onClientTick(ClientTickEvent.Post event) {
+    public static void onClientTick(TickEvent.ClientTickEvent event) {
         Minecraft mc = Minecraft.getInstance();
 
-        if (mc.level != null || mc.screen != null) {
+        if (event.phase == TickEvent.Phase.END && (mc.level != null || mc.screen != null)) {
             com.mx.viewboard.client.keybind.ViewBoardKeybindRules
                 .getInstance()
                 .syncRuntimeState();
@@ -213,9 +213,10 @@ public final class ViewBoardClientEvents {
         for (Object entry : list.children()) {
             try {
                 // Compute the row's top/bottom exactly like vanilla's AbstractSelectionList#getRowTop.
-                int rowTop = list.getY() + 4 - (int) scrollAmount + index * itemHeight + headerHeight;
+                int listTop = getListTop(list);
+                int rowTop = listTop + 4 - (int) scrollAmount + index * itemHeight + headerHeight;
                 int rowBottom = rowTop + itemHeight;
-                if (rowBottom < list.getY() || rowTop > list.getBottom()) {
+                if (rowBottom < listTop || rowTop > list.getBottom()) {
                     index++;
                     continue;
                 }
@@ -303,6 +304,20 @@ public final class ViewBoardClientEvents {
 
             index++;
         }
+    }
+
+    private static int getListTop(KeyBindsList list) {
+        Class<?> current = list.getClass();
+        while (current != null) {
+            try {
+                Field field = current.getDeclaredField("y0");
+                field.setAccessible(true);
+                return field.getInt(list);
+            } catch (Exception ignored) {
+                current = current.getSuperclass();
+            }
+        }
+        return 0;
     }
 
     private record RowButtons(Button group, Button ignore) {

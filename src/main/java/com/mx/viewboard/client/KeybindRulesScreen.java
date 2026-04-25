@@ -59,8 +59,7 @@ public final class KeybindRulesScreen extends Screen {
 
         int listTop = this.searchBox.getY() + this.searchBox.getHeight() + 8;
         int listBottom = this.height - 28 - 6;
-        int listHeight = Math.max(40, listBottom - listTop);
-        this.rulesList = this.addRenderableWidget(new RulesList(Minecraft.getInstance(), this.width, listHeight, listTop, ROW_HEIGHT));
+        this.rulesList = this.addRenderableWidget(new RulesList(Minecraft.getInstance(), this.width, this.height, listTop, listBottom));
         this.refreshList();
 
         this.backButton = this.addRenderableWidget(Button.builder(Component.translatable("gui.back"), button -> this.onClose())
@@ -89,8 +88,7 @@ public final class KeybindRulesScreen extends Screen {
         if (this.rulesList != null && this.searchBox != null) {
             int listTop = this.searchBox.getY() + this.searchBox.getHeight() + 8;
             int listBottom = this.height - 28 - 6;
-            int listHeight = Math.max(40, listBottom - listTop);
-            this.rulesList.updateSizeAndPosition(this.width, listHeight, listTop);
+            this.rulesList.updateSize(this.width, this.height, listTop, listBottom);
         }
     }
 
@@ -104,13 +102,13 @@ public final class KeybindRulesScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        this.renderMenuBackground(guiGraphics);
+    public void renderBackground(GuiGraphics guiGraphics) {
+        super.renderBackground(guiGraphics);
     }
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
+        this.renderBackground(guiGraphics);
         int left = PADDING;
         int right = this.width - PADDING;
         int top = HEADER_TOP;
@@ -166,9 +164,9 @@ public final class KeybindRulesScreen extends Screen {
         }
     }
 
-    private final class RulesList extends ContainerObjectSelectionList<RuleEntry> {
+        private final class RulesList extends ContainerObjectSelectionList<RuleEntry> {
         private RulesList(Minecraft minecraft, int width, int height, int top, int bottom) {
-            super(minecraft, width, height, top, bottom);
+            super(minecraft, width, height, top, bottom, ROW_HEIGHT);
         }
 
         @Override
