@@ -113,7 +113,9 @@ jobs:
           curseforge-id: 1485396
           curseforge-token: ${{ secrets.CURSEFORGE_API_KEY }}
 
-          files: build/libs/*.jar
+          files: |
+            build/libs/*.jar
+            !build/libs/*-sources.jar
 
           name: ViewBoard ${{ steps.get_version.outputs.version }} for ${{ github.ref_name }}
           version: ${{ steps.get_version.outputs.version }}
@@ -129,6 +131,8 @@ jobs:
             ${{ steps.branch.outputs.versions }}
 
           version-type: release
+          java: |
+            client
 
   dependency-submission:
     runs-on: ubuntu-latest
