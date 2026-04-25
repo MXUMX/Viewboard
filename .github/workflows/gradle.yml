@@ -19,6 +19,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Generate commit list
+        id: commits
+        run: |
+          COMMITS=$(git log -n 20 --pretty=format:"- %h %s")
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       # Setup Java
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -53,6 +61,9 @@ jobs:
           tag_name: ${{ github.ref_name }}-${{ github.run_id }}
           name: ViewBoard ${{ steps.get_version.outputs.version }} for ${{ github.ref_name }}
           target_commitish: ${{ github.ref_name }}
+          body: |
+            ## Changes
+            ${{ steps.commits.outputs.commits }}
           draft: false
           prerelease: false
 
