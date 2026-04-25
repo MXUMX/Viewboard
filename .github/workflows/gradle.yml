@@ -107,13 +107,19 @@ jobs:
           echo "$VERSIONS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
+      - name: Find JAR files
+        id: find_jars
+        run: |
+          JARS=$(find build/libs -name "*.jar" -not -name "*-sources.jar" | tr '\n' ';')
+          echo "jars=$JARS" >> $GITHUB_OUTPUT
+
       - name: Publish to CurseForge
         uses: Kir-Antipov/mc-publish@v3.3
         with:
           curseforge-id: 1485396
           curseforge-token: ${{ secrets.CURSEFORGE_API_KEY }}
 
-          files: build/libs/viewboard-*-${{ steps.get_version.outputs.version }}.jar
+          files: ${{ steps.find_jars.outputs.jars }}
 
           name: ViewBoard ${{ steps.get_version.outputs.version }} for ${{ github.ref_name }}
           version: ${{ steps.get_version.outputs.version }}
