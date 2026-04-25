@@ -114,7 +114,17 @@ jobs:
           rm -f upload/*-sources.jar
 
       - name: Check jar contents
-        run: jar tf upload/*.jar | head
+        run: |
+          for f in upload/*.jar; do
+            echo "Checking $f"
+            jar tf "$f" | head
+          done
+
+      - name: Debug outputs
+        run: |
+          echo "Loader: '${{ steps.branch.outputs.loader }}'"
+          echo "Versions:"
+          echo "${{ steps.branch.outputs.versions }}"
 
       - name: Publish to CurseForge
         uses: Kir-Antipov/mc-publish@v3.3
@@ -138,8 +148,6 @@ jobs:
             ${{ steps.branch.outputs.versions }}
 
           version-type: release
-          java: |
-            client
 
   dependency-submission:
     runs-on: ubuntu-latest
