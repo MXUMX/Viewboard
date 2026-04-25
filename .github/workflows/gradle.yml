@@ -126,11 +126,16 @@ jobs:
           echo "Versions:"
           echo "${{ steps.branch.outputs.versions }}"
 
-      - name: Publish to CurseForge
+      - name: Publish to CurseForge & Modrinth
         uses: Kir-Antipov/mc-publish@v3.3
         with:
+          # CurseForge
           curseforge-id: 1485396
           curseforge-token: ${{ secrets.CURSEFORGE_API_KEY }}
+
+          # 🆕 Modrinth
+          modrinth-id: xf9PORQx
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
 
           files: upload/*.jar
 
