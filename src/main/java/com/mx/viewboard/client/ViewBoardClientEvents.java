@@ -99,6 +99,37 @@ public final class ViewBoardClientEvents {
         }
     }
 
+    @SubscribeEvent
+    public static void onMouseClick(ScreenEvent.MouseButtonPressed.Pre event) {
+        if (!(event.getScreen() instanceof KeyBindsScreen keyBindsScreen)) {
+            return;
+        }
+
+        double mouseX = event.getMouseX();
+        double mouseY = event.getMouseY();
+
+        // Handle custom row buttons (Group and Ignore buttons).
+        Map<String, RowButtons> byKey = CONTROLS_ROW_BUTTONS.get(keyBindsScreen);
+        if (byKey != null) {
+            for (RowButtons buttons : byKey.values()) {
+                if (buttons.group().visible && buttons.group().mouseClicked(mouseX, mouseY, event.getButton())) {
+                    event.setCanceled(true);
+                    return;
+                }
+                if (buttons.ignore().visible && buttons.ignore().mouseClicked(mouseX, mouseY, event.getButton())) {
+                    event.setCanceled(true);
+                    return;
+                }
+            }
+        }
+
+        // Handle the main "Open ViewBoard" button.
+        Button keyboardViewButton = KEYBOARD_VIEW_BUTTONS.get(keyBindsScreen);
+        if (keyboardViewButton != null && keyboardViewButton.mouseClicked(mouseX, mouseY, event.getButton())) {
+            event.setCanceled(true);
+        }
+    }
+
     private static void attachControlsRowButtons(ScreenEvent.Init.Post event, KeyBindsScreen screen) throws Exception {
         Field listField = KeyBindsScreen.class.getDeclaredField("keyBindsList");
         listField.setAccessible(true);
@@ -113,11 +144,18 @@ public final class ViewBoardClientEvents {
 
         for (Object entry : list.children()) {
             Class<?> clazz = entry.getClass();
-            Field mappingField;
+            Field mappingField = null;
             try {
                 mappingField = clazz.getDeclaredField("key"); // 1.21.1
-            } catch (NoSuchFieldException e) {
-                continue; // category entry
+            } catch (NoSuchFieldException ignored) {
+                // fall through
+            }
+            if (mappingField == null) {
+                try {
+                    mappingField = clazz.getDeclaredField("keyMapping"); // other versions
+                } catch (NoSuchFieldException ignored) {
+                    continue; // category entry
+                }
             }
             mappingField.setAccessible(true);
             Object rawMapping = mappingField.get(entry);
@@ -140,8 +178,7 @@ public final class ViewBoardClientEvents {
             }).bounds(0, 0, 20, 20).build();
             // tooltip + message are refreshed each frame in positionControlsRowButtons
 
-            event.addListener(groupButton);
-            event.addListener(ignoreButton);
+            // Don't add to listeners - we render manually and route clicks via onMouseClick.
 
             byKey.put(mapping.getName(), new RowButtons(groupButton, ignoreButton));
         }
@@ -181,33 +218,8 @@ public final class ViewBoardClientEvents {
         // Vanilla 1.21.1: scrollBarX() == getRowRight() + 6 + 2
         int scrollBarX = list.getRowRight() + 8;
         int itemHeight = 20;
-        int headerHeight = 0;
-        double scrollAmount = 0.0;
-
-        // Prefer public API if present, but fall back to reflection if needed.
-        try {
-            var getScrollAmount = list.getClass().getMethod("getScrollAmount");
-            Object value = getScrollAmount.invoke(list);
-            if (value instanceof Number n) {
-                scrollAmount = n.doubleValue();
-            }
-        } catch (Exception ignored) {
-            try {
-                var scrollAmountField = list.getClass().getSuperclass().getDeclaredField("scrollAmount");
-                scrollAmountField.setAccessible(true);
-                scrollAmount = scrollAmountField.getDouble(list);
-            } catch (Exception ignored2) {
-                // best-effort; 0.0 is fine
-            }
-        }
-
-        try {
-            var headerHeightField = list.getClass().getSuperclass().getDeclaredField("headerHeight");
-            headerHeightField.setAccessible(true);
-            headerHeight = headerHeightField.getInt(list);
-        } catch (Exception ignored) {
-            headerHeight = 0;
-        }
+        double scrollAmount = readDouble(list, new String[] {"getScrollAmount", "scrollAmount"}, new String[] {"scrollAmount"});
+        int headerHeight = readInt(list, new String[] {"getHeaderHeight"}, new String[] {"headerHeight"});
 
         int index = 0;
         for (Object entry : list.children()) {
@@ -221,7 +233,20 @@ public final class ViewBoardClientEvents {
                 }
 
                 Class<?> clazz = entry.getClass();
-                Field mappingField = clazz.getDeclaredField("key");
+                Field mappingField = null;
+                try {
+                    mappingField = clazz.getDeclaredField("key"); // 1.21.1
+                } catch (NoSuchFieldException ignored) {
+                    // fall through
+                }
+                if (mappingField == null) {
+                    try {
+                        mappingField = clazz.getDeclaredField("keyMapping"); // other versions
+                    } catch (NoSuchFieldException ignored) {
+                        index++;
+                        continue; // category entry
+                    }
+                }
                 mappingField.setAccessible(true);
                 Object rawMapping = mappingField.get(entry);
                 if (!(rawMapping instanceof net.minecraft.client.KeyMapping mapping)) {
@@ -239,8 +264,20 @@ public final class ViewBoardClientEvents {
 
                 RowButtons buttons = byKey.get(mapping.getName());
                 if (buttons == null) {
-                    index++;
-                    continue;
+                    // This row wasn't present during init; create buttons lazily so newly visible rows
+                    // get buttons when the list is scrolled.
+                    Button groupButton = Button.builder(Component.literal("G"), clicked ->
+                        Minecraft.getInstance().setScreen(new GroupEditorScreen(screen, mapping)))
+                        .bounds(0, 0, 20, 20)
+                        .build();
+                    groupButton.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("viewboard.controls.button.group")));
+
+                    Button ignoreButton = Button.builder(Component.literal("I"), clicked -> {
+                        RULES.setIgnored(mapping, !RULES.isIgnored(mapping));
+                    }).bounds(0, 0, 20, 20).build();
+
+                    buttons = new RowButtons(groupButton, ignoreButton);
+                    byKey.put(mapping.getName(), buttons);
                 }
 
                 int iconW = 20;
@@ -303,6 +340,79 @@ public final class ViewBoardClientEvents {
 
             index++;
         }
+    }
+
+    private static double readDouble(Object target, String[] methodNames, String[] fieldNames) {
+        // Prefer a public/protected no-arg method if present (names vary by Minecraft version).
+        for (String methodName : methodNames) {
+            try {
+                var method = target.getClass().getMethod(methodName);
+                Object value = method.invoke(target);
+                if (value instanceof Number n) {
+                    return n.doubleValue();
+                }
+            } catch (Exception ignored) {
+                // try next
+            }
+        }
+
+        for (String fieldName : fieldNames) {
+            Field field = findField(target.getClass(), fieldName);
+            if (field == null) continue;
+            try {
+                field.setAccessible(true);
+                Object value = field.get(target);
+                if (value instanceof Number n) {
+                    return n.doubleValue();
+                }
+            } catch (Exception ignored) {
+                // try next
+            }
+        }
+
+        return 0.0;
+    }
+
+    private static int readInt(Object target, String[] methodNames, String[] fieldNames) {
+        for (String methodName : methodNames) {
+            try {
+                var method = target.getClass().getMethod(methodName);
+                Object value = method.invoke(target);
+                if (value instanceof Number n) {
+                    return n.intValue();
+                }
+            } catch (Exception ignored) {
+                // try next
+            }
+        }
+
+        for (String fieldName : fieldNames) {
+            Field field = findField(target.getClass(), fieldName);
+            if (field == null) continue;
+            try {
+                field.setAccessible(true);
+                Object value = field.get(target);
+                if (value instanceof Number n) {
+                    return n.intValue();
+                }
+            } catch (Exception ignored) {
+                // try next
+            }
+        }
+
+        return 0;
+    }
+
+    private static Field findField(Class<?> startClass, String fieldName) {
+        Class<?> current = startClass;
+        while (current != null && current != Object.class) {
+            try {
+                return current.getDeclaredField(fieldName);
+            } catch (NoSuchFieldException ignored) {
+                current = current.getSuperclass();
+            }
+        }
+        return null;
     }
 
     private record RowButtons(Button group, Button ignore) {

@@ -379,7 +379,6 @@ public final class GroupEditorScreen extends Screen {
             return PADDING + 2;
         }
 
-        @Override
         protected int getScrollbarPosition() {
             return this.width - PADDING - 6;
         }
