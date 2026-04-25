@@ -4,18 +4,15 @@ on:
   push:
     branches:
       - neoforge-1.21.11
-      - neoforge-1.21.1-1.21.5
-  pull_request:
-    branches:
-      - neoforge-1.21.11
-      - neoforge-1.21.1-1.21.5
+      - neoforge-1.21.5
+      - neoforge-1.21.1-1.21.3
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: read
+      contents: write
 
     steps:
       # Checkout repo
@@ -42,14 +39,14 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build --no-daemon
 
-      # Upload build artifacts (JARs)
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+      # Create GitHub Release with artifacts
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
         with:
-          name: build-artifacts
-          path: build/libs/*.jar
-          if-no-files-found: error
-          compression-level: 2
+          files: build/libs/*.jar
+          tag_name: ${{ github.ref_name }}-${{ github.run_number }}
+          draft: false
+          prerelease: false
 
   dependency-submission:
     runs-on: ubuntu-latest
