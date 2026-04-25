@@ -72,6 +72,64 @@ jobs:
             ${{ steps.commits.outputs.commits }}
           draft: false
           prerelease: false
+        
+      - name: Parse branch info
+        id: branch
+        run: |
+          BRANCH="${GITHUB_REF_NAME}"
+
+          # Extract loader (before first dash)
+          LOADER=$(echo "$BRANCH" | cut -d'-' -f1)
+
+          # Extract version part (everything after first dash)
+          VERSION_PART=$(echo "$BRANCH" | cut -d'-' -f2-)
+
+          echo "loader=$LOADER" >> $GITHUB_OUTPUT
+
+          # Handle version range (e.g., 1.21.1-1.21.3)
+          if [[ "$VERSION_PART" == *"-"* ]]; then
+            START=$(echo "$VERSION_PART" | cut -d'-' -f1)
+            END=$(echo "$VERSION_PART" | cut -d'-' -f2)
+
+            BASE=$(echo "$START" | cut -d'.' -f1,2)
+            START_PATCH=$(echo "$START" | cut -d'.' -f3)
+            END_PATCH=$(echo "$END" | cut -d'.' -f3)
+
+            VERSIONS=""
+            for ((i=START_PATCH; i<=END_PATCH; i++)); do
+              VERSIONS+="$BASE.$i"$'\n'
+            done
+          else
+            VERSIONS="$VERSION_PART"
+          fi
+
+          echo "versions<<EOF" >> $GITHUB_OUTPUT
+          echo "$VERSIONS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Publish to CurseForge
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          curseforge-id: 1485396
+          curseforge-token: ${{ secrets.CURSEFORGE_API_KEY }}
+
+          files: build/libs/*.jar
+
+          name: ViewBoard ${{ steps.get_version.outputs.version }} for ${{ github.ref_name }}
+          version: ${{ steps.get_version.outputs.version }}
+
+          changelog: |
+            ## Changes
+            ${{ steps.commits.outputs.commits }}
+
+          release-type: release
+          loaders: |
+            ${{ steps.branch.outputs.loader }}
+
+          game-versions: |
+            ${{ steps.branch.outputs.versions }}
+
+          curseforge-release-type: release
 
   dependency-submission:
     runs-on: ubuntu-latest
