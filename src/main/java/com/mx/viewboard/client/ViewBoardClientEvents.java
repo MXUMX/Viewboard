@@ -1,34 +1,45 @@
 package com.mx.viewboard.client;
 
-import com.mx.viewboard.ViewBoardMod;
 import com.mx.viewboard.client.keybind.ViewBoardKeybindRules;
 import java.lang.reflect.Field;
 import java.util.Map;
 import java.util.WeakHashMap;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
+import net.fabricmc.fabric.api.client.screen.v1.Screens;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
-import net.minecraft.client.gui.screens.options.controls.KeyBindsList;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.controls.KeyBindsScreen;
+import net.minecraft.client.gui.screens.controls.KeyBindsList;
 import net.minecraft.network.chat.Component;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.client.event.ClientTickEvent;
-import net.neoforged.neoforge.client.event.ScreenEvent;
 
-@EventBusSubscriber(modid = ViewBoardMod.MOD_ID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.GAME)
 public final class ViewBoardClientEvents {
 
     private static final Map<KeyBindsScreen, Button> KEYBOARD_VIEW_BUTTONS = new WeakHashMap<>();
     private static final Map<KeyBindsScreen, Map<String, RowButtons>> CONTROLS_ROW_BUTTONS = new WeakHashMap<>();
     private static final ViewBoardKeybindRules RULES = ViewBoardKeybindRules.getInstance();
+    private static boolean registered;
 
     private ViewBoardClientEvents() {}
 
-    @SubscribeEvent
-    public static void onScreenInit(ScreenEvent.Init.Post event) {
-        if (!(event.getScreen() instanceof KeyBindsScreen keyBindsScreen)) {
+    public static void register() {
+        if (registered) {
+            return;
+        }
+        registered = true;
+
+        ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> onScreenInit(screen));
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (client.level != null || client.screen != null) {
+                RULES.syncRuntimeState();
+            }
+        });
+    }
+
+    private static void onScreenInit(Screen screen) {
+        if (!(screen instanceof KeyBindsScreen keyBindsScreen)) {
             return;
         }
 
@@ -38,68 +49,59 @@ public final class ViewBoardClientEvents {
             clicked -> minecraft.setScreen(new KeyboardViewScreen(keyBindsScreen))
         ).bounds(keyBindsScreen.width - 106, keyBindsScreen.height - 27, 100, 20).build();
 
-        event.addListener(button);
+        Screens.getButtons(keyBindsScreen).add(button);
         KEYBOARD_VIEW_BUTTONS.put(keyBindsScreen, button);
 
         try {
-            attachControlsRowButtons(event, keyBindsScreen);
+            attachControlsRowButtons(keyBindsScreen);
         } catch (Exception ignored) {
             // Avoid impacting vanilla screen if reflection fails.
         }
+
+        ScreenEvents.beforeRender(keyBindsScreen).register((renderedScreen, guiGraphics, mouseX, mouseY, partialTick) -> {
+            Button keyboardButton = KEYBOARD_VIEW_BUTTONS.get(keyBindsScreen);
+            if (keyboardButton != null) {
+                keyboardButton.setPosition(keyBindsScreen.width - 106, keyBindsScreen.height - 27);
+            }
+
+            hideControlsRowButtons(keyBindsScreen);
+            ControlsScreenBridge.decorate(keyBindsScreen);
+        });
+
+        ScreenEvents.afterRender(keyBindsScreen).register((renderedScreen, guiGraphics, mouseX, mouseY, partialTick) -> {
+            Map<String, RowButtons> byKey = CONTROLS_ROW_BUTTONS.get(keyBindsScreen);
+            if (byKey == null || byKey.isEmpty()) {
+                return;
+            }
+
+            positionControlsRowButtons(keyBindsScreen);
+
+            for (RowButtons buttons : byKey.values()) {
+                if (buttons.group().visible) {
+                    buttons.group().render(guiGraphics, mouseX, mouseY, partialTick);
+                }
+                if (buttons.ignore().visible) {
+                    buttons.ignore().render(guiGraphics, mouseX, mouseY, partialTick);
+                }
+            }
+        });
     }
 
-    @SubscribeEvent
-    public static void onScreenRender(ScreenEvent.Render.Pre event) {
-        if (!(event.getScreen() instanceof KeyBindsScreen keyBindsScreen)) {
-            return;
-        }
-
-        // Keep the keyboard-view button pinned to bottom-right, even on resize.
-        Button button = KEYBOARD_VIEW_BUTTONS.get(keyBindsScreen);
-        if (button != null) {
-            button.setPosition(keyBindsScreen.width - 106, keyBindsScreen.height - 27);
-        }
-
-        // Patch vanilla duplicate warnings + tooltip indicators using ViewBoard's effective rules.
-        ControlsScreenBridge.decorate(keyBindsScreen);
-    }
-
-    @SubscribeEvent
-    public static void onScreenRenderPost(ScreenEvent.Render.Post event) {
-        if (!(event.getScreen() instanceof KeyBindsScreen keyBindsScreen)) {
-            return;
-        }
-
-        Map<String, RowButtons> byKey = CONTROLS_ROW_BUTTONS.get(keyBindsScreen);
+    private static void hideControlsRowButtons(KeyBindsScreen screen) {
+        Map<String, RowButtons> byKey = CONTROLS_ROW_BUTTONS.get(screen);
         if (byKey == null || byKey.isEmpty()) {
             return;
         }
 
-        // Position after vanilla has rendered the visible rows (so change/reset button Y is correct).
-        positionControlsRowButtons(keyBindsScreen);
-
         for (RowButtons buttons : byKey.values()) {
-            if (buttons.group().visible) {
-                buttons.group().render(event.getGuiGraphics(), event.getMouseX(), event.getMouseY(), event.getPartialTick());
-            }
-            if (buttons.ignore().visible) {
-                buttons.ignore().render(event.getGuiGraphics(), event.getMouseX(), event.getMouseY(), event.getPartialTick());
-            }
+            buttons.group().visible = false;
+            buttons.group().active = false;
+            buttons.ignore().visible = false;
+            buttons.ignore().active = false;
         }
     }
 
-    @SubscribeEvent
-    public static void onClientTick(ClientTickEvent.Post event) {
-        Minecraft mc = Minecraft.getInstance();
-
-        if (mc.level != null || mc.screen != null) {
-            com.mx.viewboard.client.keybind.ViewBoardKeybindRules
-                .getInstance()
-                .syncRuntimeState();
-        }
-    }
-
-    private static void attachControlsRowButtons(ScreenEvent.Init.Post event, KeyBindsScreen screen) throws Exception {
+    private static void attachControlsRowButtons(KeyBindsScreen screen) throws Exception {
         Field listField = KeyBindsScreen.class.getDeclaredField("keyBindsList");
         listField.setAccessible(true);
         Object rawList = listField.get(screen);
@@ -140,8 +142,8 @@ public final class ViewBoardClientEvents {
             }).bounds(0, 0, 20, 20).build();
             // tooltip + message are refreshed each frame in positionControlsRowButtons
 
-            event.addListener(groupButton);
-            event.addListener(ignoreButton);
+            Screens.getButtons(screen).add(groupButton);
+            Screens.getButtons(screen).add(ignoreButton);
 
             byKey.put(mapping.getName(), new RowButtons(groupButton, ignoreButton));
         }
@@ -213,9 +215,10 @@ public final class ViewBoardClientEvents {
         for (Object entry : list.children()) {
             try {
                 // Compute the row's top/bottom exactly like vanilla's AbstractSelectionList#getRowTop.
-                int rowTop = list.getY() + 4 - (int) scrollAmount + index * itemHeight + headerHeight;
+                int listTop = getListTop(list);
+                int rowTop = listTop + 4 - (int) scrollAmount + index * itemHeight + headerHeight;
                 int rowBottom = rowTop + itemHeight;
-                if (rowBottom < list.getY() || rowTop > list.getBottom()) {
+                if (rowBottom < listTop || rowTop > getListBottom(list)) {
                     index++;
                     continue;
                 }
@@ -303,6 +306,28 @@ public final class ViewBoardClientEvents {
 
             index++;
         }
+    }
+
+    private static int getListTop(KeyBindsList list) {
+        return getListBound(list, "y0");
+    }
+
+    private static int getListBottom(KeyBindsList list) {
+        return getListBound(list, "y1");
+    }
+
+    private static int getListBound(KeyBindsList list, String fieldName) {
+        Class<?> current = list.getClass();
+        while (current != null) {
+            try {
+                Field field = current.getDeclaredField(fieldName);
+                field.setAccessible(true);
+                return field.getInt(list);
+            } catch (Exception ignored) {
+                current = current.getSuperclass();
+            }
+        }
+        return 0;
     }
 
     private record RowButtons(Button group, Button ignore) {

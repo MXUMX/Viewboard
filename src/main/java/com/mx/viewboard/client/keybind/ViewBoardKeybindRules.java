@@ -17,7 +17,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.neoforged.neoforge.client.settings.KeyModifier;
 
 public final class ViewBoardKeybindRules {
     private static final ViewBoardKeybindRules INSTANCE = new ViewBoardKeybindRules();
@@ -149,8 +148,8 @@ public final class ViewBoardKeybindRules {
         this.removeFromGroup(mapping);
         targetGroup.members().add(new KeybindMemberConfig(
             mapping.getName(),
-            SerializedKey.fromInputKey(mapping.getKey()).asConfigString(),
-            mapping.getKeyModifier().name()
+            SerializedKey.fromInputKey(currentKey(mapping)).asConfigString(),
+            KeyModifier.NONE.name()
         ));
         this.applyGroupMember(mapping, targetGroup, targetGroup.members().get(targetGroup.members().size() - 1));
         this.save();
@@ -191,12 +190,13 @@ public final class ViewBoardKeybindRules {
                         continue;
                     }
 
-                    SerializedKey currentKey = SerializedKey.fromInputKey(mapping.getKey());
-                    KeyModifier currentModifier = mapping.getKeyModifier();
+                    SerializedKey currentKey = SerializedKey.fromInputKey(currentKey(mapping));
+                    KeyModifier currentModifier = KeyModifier.NONE;
                     SerializedKey originalKey = SerializedKey.parse(member.originalKey());
                     KeyModifier originalModifier = parseModifier(member.originalModifier());
 
-                    if (!sameBinding(currentKey, currentModifier, trigger, triggerModifier)
+                    boolean matchesAppliedGroupKey = Objects.equals(currentKey, trigger);
+                    if (!matchesAppliedGroupKey
                         && !sameBinding(currentKey, currentModifier, originalKey, originalModifier)) {
                         member.setOriginalKey(currentKey.asConfigString());
                         member.setOriginalModifier(currentModifier.name());
@@ -227,8 +227,8 @@ public final class ViewBoardKeybindRules {
             states.add(new KeyBindingState(
                 mapping.getName(),
                 mapping,
-                SerializedKey.fromInputKey(mapping.getKey()),
-                mapping.getKeyModifier(),
+                SerializedKey.fromInputKey(currentKey(mapping)),
+                group.map(this::groupTriggerModifier).orElse(KeyModifier.NONE),
                 this.isIgnored(mapping),
                 group.map(KeybindGroupConfig::id).orElse(null),
                 group.map(KeybindGroupConfig::name).orElse(null)
@@ -302,6 +302,20 @@ public final class ViewBoardKeybindRules {
         return String.valueOf(mapping.getCategory());
     }
 
+    public static InputConstants.Key currentKey(KeyMapping mapping) {
+        try {
+            var field = KeyMapping.class.getDeclaredField("key");
+            field.setAccessible(true);
+            Object value = field.get(mapping);
+            if (value instanceof InputConstants.Key key) {
+                return key;
+            }
+        } catch (Exception ignored) {
+            // Fabric's official 1.20.1 mappings do not expose a getKey accessor.
+        }
+        return InputConstants.UNKNOWN;
+    }
+
     public void save() {
         this.ensureLoaded();
         ViewBoardConfigStore.save(this.config);
@@ -312,7 +326,7 @@ public final class ViewBoardKeybindRules {
     }
 
     private void restoreMember(KeyMapping mapping, KeybindMemberConfig member) {
-        mapping.setKeyModifierAndCode(parseModifier(member.originalModifier()), SerializedKey.parse(member.originalKey()).toInputKey());
+        mapping.setKey(SerializedKey.parse(member.originalKey()).toInputKey());
         KeyMapping.resetMapping();
     }
 
@@ -323,7 +337,7 @@ public final class ViewBoardKeybindRules {
     }
 
     private void applyGroupMember(KeyMapping mapping, KeybindGroupConfig group, KeybindMemberConfig member) {
-        mapping.setKeyModifierAndCode(this.groupTriggerModifier(group), SerializedKey.parse(group.triggerKey()).toInputKey());
+        mapping.setKey(SerializedKey.parse(group.triggerKey()).toInputKey());
         KeyMapping.resetMapping();
     }
 

@@ -1,5 +1,6 @@
 package com.mx.viewboard;
 
+import com.mx.viewboard.client.ViewBoardClientEvents;
 import net.fabricmc.api.ClientModInitializer;
 
 public final class ViewBoardMod implements ClientModInitializer {
@@ -7,5 +8,6 @@ public final class ViewBoardMod implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        ViewBoardClientEvents.register();
     }
 }

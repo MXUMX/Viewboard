@@ -1,6 +1,7 @@
 package com.mx.viewboard.client;
 
 import com.mx.viewboard.client.keybind.KeybindGroupConfig;
+import com.mx.viewboard.client.keybind.KeyModifier;
 import com.mx.viewboard.client.keybind.SerializedKey;
 import com.mx.viewboard.client.keybind.ViewBoardKeybindRules;
 import com.mojang.blaze3d.platform.InputConstants;
@@ -13,7 +14,6 @@ import net.minecraft.client.gui.components.ObjectSelectionList;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import net.neoforged.neoforge.client.settings.KeyModifier;
 
 public final class GroupEditorScreen extends Screen {
     private static final int COLOR_TEXT = 0xFFFFFFFF;
@@ -59,7 +59,7 @@ public final class GroupEditorScreen extends Screen {
 
         this.computeLayout();
         // We'll size/position the list after laying out compact controls, so use a safe initial size here.
-        this.groupsList = this.addRenderableWidget(new GroupsList(Minecraft.getInstance(), Math.max(40, this.width), Math.max(40, this.height - 120), 58, ROW_HEIGHT));
+        this.groupsList = this.addRenderableWidget(new GroupsList(Minecraft.getInstance(), Math.max(40, this.width), Math.max(40, this.height), 58, Math.max(98, this.height - FOOTER_H)));
 
         this.nameBox = new EditBox(this.font, this.sidebarX, 80, this.sidebarWidth, 20, Component.translatable("viewboard.groups.name"));
         this.nameBox.setMaxLength(40);
@@ -73,8 +73,8 @@ public final class GroupEditorScreen extends Screen {
         this.createButton = this.addRenderableWidget(Button.builder(Component.translatable("viewboard.groups.create"), button -> {
             KeybindGroupConfig group = this.rules.createGroup(
                 "Group " + (this.rules.groups().size() + 1),
-                SerializedKey.fromInputKey(this.mapping.getKey()),
-                this.mapping.getKeyModifier()
+                SerializedKey.fromInputKey(ViewBoardKeybindRules.currentKey(this.mapping)),
+                KeyModifier.NONE
             );
             this.selectedGroupId = group.id();
             this.refreshWidgets();
@@ -185,13 +185,13 @@ public final class GroupEditorScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        this.renderMenuBackground(guiGraphics);
+    public void renderBackground(GuiGraphics guiGraphics) {
+        super.renderBackground(guiGraphics);
     }
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
+        this.renderBackground(guiGraphics);
         int left = PADDING;
         int right = this.width - PADDING;
         int top = HEADER_TOP;
@@ -303,8 +303,7 @@ public final class GroupEditorScreen extends Screen {
             int listTop = controlsTop + controlsHeight + 10;
             int listBottom = backY - 6;
             int listWidth = Math.max(40, this.width);
-            int listHeight = Math.max(40, listBottom - listTop);
-            this.groupsList.updateSizeAndPosition(listWidth, listHeight, listTop);
+            this.groupsList.updateSize(listWidth, this.height, listTop, listBottom);
         } else {
             if (this.nameBox != null) this.nameBox.setY(80);
             if (this.triggerButton != null) this.triggerButton.setY(110);
@@ -317,8 +316,7 @@ public final class GroupEditorScreen extends Screen {
             int listTop = 58;
             int listBottom = this.height - 28 - 6;
             int listWidth = Math.max(40, this.listRight);
-            int listHeight = Math.max(40, listBottom - listTop);
-            this.groupsList.updateSizeAndPosition(listWidth, listHeight, listTop);
+            this.groupsList.updateSize(listWidth, this.height, listTop, listBottom);
         }
     }
 
@@ -365,7 +363,7 @@ public final class GroupEditorScreen extends Screen {
 
     private final class GroupsList extends ObjectSelectionList<GroupEntry> {
         private GroupsList(Minecraft minecraft, int width, int height, int top, int bottom) {
-            super(minecraft, width, height, top, bottom);
+            super(minecraft, width, height, top, bottom, ROW_HEIGHT);
             this.refreshEntries();
         }
 
