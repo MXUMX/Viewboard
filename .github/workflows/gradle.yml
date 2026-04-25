@@ -6,6 +6,12 @@ on:
       - neoforge-1.21.11
       - neoforge-1.21.5
       - neoforge-1.21.1-1.21.3
+    workflow_dispatch: # This enables the manual trigger
+      inputs:
+        reason:
+          description: 'Reason for manual release'
+          required: false
+          default: 'Manual trigger'
 
 jobs:
   build:
