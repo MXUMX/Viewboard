@@ -9,6 +9,14 @@ Verified build target:
 - Forge `47.3.0`
 - Java `17`
 
+
+
+CURRENT PROBLEMS: 
+- The 2 buttons in the Minecraft Keybinds Settings does not show up at all. 
+- The changes made for the "igore" function of the mod does not work in the Minecraft Keybinds Settings screen, same keybinds are stil highlighted for conflicting in the Minecraft Keybinds Settings screen even if ignored is on. 
+
+
+
 [<img src="https://img.shields.io/modrinth/dt/xf9PORQx?logo=modrinth&style=for-the-badge" alt="Modrinth Downloads" />](https://modrinth.com/mod/viewboard)
 
 [<img src="https://img.shields.io/curseforge/dt/1485396?logo=curseforge&style=for-the-badge" alt="CurseForge Downloads" />](https://www.curseforge.com/minecraft/mc-mods/viewboard)
@@ -78,6 +86,16 @@ viewboard-forge-1.20.1-1.1.0-sources.jar
 - `src/main/java` contains the mod source code
 - `src/main/resources` contains metadata and assets
 - `build.gradle` and `gradle.properties` define the Forge build
+
+
+
+CURRENT PROBLEMS: 
+- The 2 buttons in the Minecraft Keybinds Settings does not show up at all. 
+- The assigned keybinds are not detected: The keyboard view does not show any keybinds that are bound at all. 
+- The changes made for the "igore" function of the mod does not work in the Minecraft Keybinds Settings screen, same keybinds are stil highlighted for conflicting in the Minecraft Keybinds Settings screen even if ignored is on. 
+
+
+
 
 ## Mod ID
 
