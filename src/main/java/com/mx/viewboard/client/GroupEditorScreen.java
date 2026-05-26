@@ -7,11 +7,13 @@ import com.mojang.blaze3d.platform.InputConstants;
 import java.util.List;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.ObjectSelectionList;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.neoforged.neoforge.client.settings.KeyModifier;
 
@@ -59,7 +61,7 @@ public final class GroupEditorScreen extends Screen {
 
         this.computeLayout();
         // We'll size/position the list after laying out compact controls, so use a safe initial size here.
-        this.groupsList = this.addRenderableWidget(new GroupsList(Minecraft.getInstance(), Math.max(40, this.width), Math.max(40, this.height - 120), 58, ROW_HEIGHT));
+        this.groupsList = this.addRenderableWidget(new GroupsList(Minecraft.getInstance(), Math.max(40, this.width), Math.max(40, this.height), 58, ROW_HEIGHT));
 
         this.nameBox = new EditBox(this.font, this.sidebarX, 80, this.sidebarWidth, 20, Component.translatable("viewboard.groups.name"));
         this.nameBox.setMaxLength(40);
@@ -125,8 +127,9 @@ public final class GroupEditorScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    public boolean keyPressed(KeyEvent event) {
         if (this.capturingTrigger) {
+            int keyCode = event.key();
             if (keyCode == 256) {
                 this.capturingTrigger = false;
                 this.pendingModifierKey = null;
@@ -148,13 +151,13 @@ public final class GroupEditorScreen extends Screen {
             }
         }
 
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return super.keyPressed(event);
     }
 
     @Override
-    public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+    public boolean keyReleased(KeyEvent event) {
         if (this.capturingTrigger && this.pendingModifierKey != null) {
-            SerializedKey releasedKey = SerializedKey.fromInputKey(InputConstants.Type.KEYSYM.getOrCreate(keyCode));
+            SerializedKey releasedKey = SerializedKey.fromInputKey(InputConstants.Type.KEYSYM.getOrCreate(event.key()));
             if (this.pendingModifierKey.equals(releasedKey)) {
                 KeybindGroupConfig group = this.selectedGroup();
                 if (group != null) {
@@ -164,34 +167,28 @@ public final class GroupEditorScreen extends Screen {
             }
         }
 
-        return super.keyReleased(keyCode, scanCode, modifiers);
+        return super.keyReleased(event);
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (this.capturingTrigger) {
             KeybindGroupConfig group = this.selectedGroup();
             if (group != null) {
                 this.applyCapturedTrigger(
                     group,
-                    SerializedKey.fromInputKey(InputConstants.Type.MOUSE.getOrCreate(button)),
+                    SerializedKey.fromInputKey(InputConstants.Type.MOUSE.getOrCreate(event.button())),
                     activeModifierForTrigger(null)
                 );
                 return true;
             }
         }
 
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(event, doubleClick);
     }
 
     @Override
-    public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        this.renderMenuBackground(guiGraphics);
-    }
-
-    @Override
-    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
+    public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
         int left = PADDING;
         int right = this.width - PADDING;
         int top = HEADER_TOP;
@@ -203,32 +200,32 @@ public final class GroupEditorScreen extends Screen {
         guiGraphics.fill(left, top, left + 1, bottom, COLOR_BORDER);
         guiGraphics.fill(right - 1, top, right, bottom, COLOR_BORDER);
 
-        guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 8, COLOR_TEXT);
-        guiGraphics.drawCenteredString(this.font, Component.translatable("viewboard.groups.subtitle", Component.translatable(this.mapping.getName())), this.width / 2, 18, COLOR_SUBTEXT);
+        guiGraphics.centeredText(this.font, this.title, this.width / 2, 8, COLOR_TEXT);
+        guiGraphics.centeredText(this.font, Component.translatable("viewboard.groups.subtitle", Component.translatable(this.mapping.getName())), this.width / 2, 18, COLOR_SUBTEXT);
 
         KeybindGroupConfig group = this.selectedGroup();
         int infoX = this.sidebarX;
         int infoY = 52;
         if (!this.compactLayout) {
-            guiGraphics.drawString(this.font, Component.translatable("viewboard.groups.selected"), infoX, infoY, COLOR_TEXT, false);
-            guiGraphics.drawString(this.font, Component.literal(group == null ? "-" : group.name()), infoX, infoY + 18, COLOR_SUBTEXT, false);
-            guiGraphics.drawString(this.font, Component.translatable("viewboard.groups.members"), infoX, 300, COLOR_TEXT, false);
+            guiGraphics.text(this.font, Component.translatable("viewboard.groups.selected"), infoX, infoY, COLOR_TEXT, false);
+            guiGraphics.text(this.font, Component.literal(group == null ? "-" : group.name()), infoX, infoY + 18, COLOR_SUBTEXT, false);
+            guiGraphics.text(this.font, Component.translatable("viewboard.groups.members"), infoX, 300, COLOR_TEXT, false);
 
             if (group != null) {
                 int memberY = 316;
                 for (String member : group.members().stream().map(member -> member.keybindId()).limit(9).toList()) {
-                    guiGraphics.drawString(this.font, Component.translatable(member), infoX, memberY, COLOR_SUBTEXT, false);
+                    guiGraphics.text(this.font, Component.translatable(member), infoX, memberY, COLOR_SUBTEXT, false);
                     memberY += 12;
                 }
             }
         }
 
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
+        super.extractRenderState(guiGraphics, mouseX, mouseY, partialTick);
     }
 
     @Override
-    public void resize(Minecraft minecraft, int width, int height) {
-        super.resize(minecraft, width, height);
+    public void resize(int width, int height) {
+        super.resize(width, height);
         if (this.groupsList == null) {
             return;
         }
@@ -303,8 +300,7 @@ public final class GroupEditorScreen extends Screen {
             int listTop = controlsTop + controlsHeight + 10;
             int listBottom = backY - 6;
             int listWidth = Math.max(40, this.width);
-            int listHeight = Math.max(40, listBottom - listTop);
-            this.groupsList.updateSizeAndPosition(listWidth, listHeight, listTop);
+            this.groupsList.updateSizeAndPosition(listWidth, Math.max(40, listBottom - listTop), 0, listTop);
         } else {
             if (this.nameBox != null) this.nameBox.setY(80);
             if (this.triggerButton != null) this.triggerButton.setY(110);
@@ -317,8 +313,7 @@ public final class GroupEditorScreen extends Screen {
             int listTop = 58;
             int listBottom = this.height - 28 - 6;
             int listWidth = Math.max(40, this.listRight);
-            int listHeight = Math.max(40, listBottom - listTop);
-            this.groupsList.updateSizeAndPosition(listWidth, listHeight, listTop);
+            this.groupsList.updateSizeAndPosition(listWidth, Math.max(40, listBottom - listTop), 0, listTop);
         }
     }
 
@@ -364,8 +359,8 @@ public final class GroupEditorScreen extends Screen {
     }
 
     private final class GroupsList extends ObjectSelectionList<GroupEntry> {
-        private GroupsList(Minecraft minecraft, int width, int height, int top, int bottom) {
-            super(minecraft, width, height, top, bottom);
+        private GroupsList(Minecraft minecraft, int width, int height, int top, int itemHeight) {
+            super(minecraft, width, height, top, itemHeight);
             this.refreshEntries();
         }
 
@@ -380,7 +375,7 @@ public final class GroupEditorScreen extends Screen {
         }
 
         @Override
-        protected int getScrollbarPosition() {
+        protected int scrollBarX() {
             return this.width - PADDING - 6;
         }
 
@@ -400,21 +395,24 @@ public final class GroupEditorScreen extends Screen {
         }
 
         @Override
-        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
             selectedGroupId = this.group.id();
             refreshWidgets();
             return true;
         }
 
         @Override
-        public void render(GuiGraphics guiGraphics, int index, int top, int left, int width, int height, int mouseX, int mouseY, boolean hovered, float partialTick) {
+        public void extractContent(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, boolean hovered, float partialTick) {
             boolean selected = this.group.id().equals(selectedGroupId);
+            int top = this.getY();
+            int left = this.getX();
+            int width = this.getWidth();
             int rowTop = top + 2;
             int rowHeight = ROW_HEIGHT - 4;
             guiGraphics.fill(left, rowTop, left + width, rowTop + rowHeight, selected ? 0x6654A4FF : hovered ? 0x55363636 : 0x33242424);
             guiGraphics.fill(left, top + 2, left + width, top + 3, COLOR_BORDER);
-            guiGraphics.drawString(font, this.group.name(), left + 8, top + 6, COLOR_TEXT, false);
-            guiGraphics.drawString(
+            guiGraphics.text(font, this.group.name(), left + 8, top + 6, COLOR_TEXT, false);
+            guiGraphics.text(
                 font,
                 ViewBoardKeybindRules.displayBindingLabel(
                     SerializedKey.parse(this.group.triggerKey()),

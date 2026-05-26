@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Locale;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.ContainerObjectSelectionList;
 import net.minecraft.client.gui.components.EditBox;
@@ -59,8 +59,8 @@ public final class KeybindRulesScreen extends Screen {
 
         int listTop = this.searchBox.getY() + this.searchBox.getHeight() + 8;
         int listBottom = this.height - 28 - 6;
-        int listHeight = Math.max(40, listBottom - listTop);
-        this.rulesList = this.addRenderableWidget(new RulesList(Minecraft.getInstance(), this.width, listHeight, listTop, ROW_HEIGHT));
+        this.rulesList = this.addRenderableWidget(new RulesList(Minecraft.getInstance(), this.width, this.height, listTop, ROW_HEIGHT));
+        this.rulesList.updateSizeAndPosition(this.width, Math.max(40, listBottom - listTop), 0, listTop);
         this.refreshList();
 
         this.backButton = this.addRenderableWidget(Button.builder(Component.translatable("gui.back"), button -> this.onClose())
@@ -74,8 +74,8 @@ public final class KeybindRulesScreen extends Screen {
     }
 
     @Override
-    public void resize(Minecraft minecraft, int width, int height) {
-        super.resize(minecraft, width, height);
+    public void resize(int width, int height) {
+        super.resize(width, height);
         if (this.searchBox != null) {
             this.searchBox.setX(PADDING + 8);
             this.searchBox.setWidth(this.searchBoxWidth());
@@ -89,8 +89,7 @@ public final class KeybindRulesScreen extends Screen {
         if (this.rulesList != null && this.searchBox != null) {
             int listTop = this.searchBox.getY() + this.searchBox.getHeight() + 8;
             int listBottom = this.height - 28 - 6;
-            int listHeight = Math.max(40, listBottom - listTop);
-            this.rulesList.updateSizeAndPosition(this.width, listHeight, listTop);
+            this.rulesList.updateSizeAndPosition(this.width, Math.max(40, listBottom - listTop), 0, listTop);
         }
     }
 
@@ -104,13 +103,7 @@ public final class KeybindRulesScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        this.renderMenuBackground(guiGraphics);
-    }
-
-    @Override
-    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
+    public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
         int left = PADDING;
         int right = this.width - PADDING;
         int top = HEADER_TOP;
@@ -122,10 +115,10 @@ public final class KeybindRulesScreen extends Screen {
         guiGraphics.fill(left, top, left + 1, bottom, COLOR_BORDER);
         guiGraphics.fill(right - 1, top, right, bottom, COLOR_BORDER);
 
-        guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 8, COLOR_TEXT);
-        guiGraphics.drawCenteredString(this.font, Component.translatable("viewboard.rules.subtitle"), this.width / 2, 18, COLOR_SUBTEXT);
+        guiGraphics.centeredText(this.font, this.title, this.width / 2, 8, COLOR_TEXT);
+        guiGraphics.centeredText(this.font, Component.translatable("viewboard.rules.subtitle"), this.width / 2, 18, COLOR_SUBTEXT);
 
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
+        super.extractRenderState(guiGraphics, mouseX, mouseY, partialTick);
     }
 
     private void refreshList() {
@@ -167,8 +160,8 @@ public final class KeybindRulesScreen extends Screen {
     }
 
     private final class RulesList extends ContainerObjectSelectionList<RuleEntry> {
-        private RulesList(Minecraft minecraft, int width, int height, int top, int bottom) {
-            super(minecraft, width, height, top, bottom);
+        private RulesList(Minecraft minecraft, int width, int height, int top, int itemHeight) {
+            super(minecraft, width, height, top, itemHeight);
         }
 
         @Override
@@ -182,7 +175,7 @@ public final class KeybindRulesScreen extends Screen {
         }
 
         @Override
-        protected int getScrollbarPosition() {
+        protected int scrollBarX() {
             return this.width - PADDING - 6;
         }
 
@@ -212,7 +205,10 @@ public final class KeybindRulesScreen extends Screen {
         }
 
         @Override
-        public void render(GuiGraphics guiGraphics, int index, int top, int left, int width, int height, int mouseX, int mouseY, boolean hovered, float partialTick) {
+        public void extractContent(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, boolean hovered, float partialTick) {
+            int top = this.getY();
+            int left = this.getX();
+            int width = this.getWidth();
             int rowTop = top + 2;
             int rowHeight = ROW_HEIGHT - 4;
 
@@ -246,16 +242,16 @@ public final class KeybindRulesScreen extends Screen {
 
             this.groupButton.setPosition(groupX, rowTop + 2);
             this.ignoreButton.setPosition(ignoreX, rowTop + 2);
-            this.groupButton.render(guiGraphics, mouseX, mouseY, partialTick);
-            this.ignoreButton.render(guiGraphics, mouseX, mouseY, partialTick);
+            this.groupButton.extractRenderState(guiGraphics, mouseX, mouseY, partialTick);
+            this.ignoreButton.extractRenderState(guiGraphics, mouseX, mouseY, partialTick);
 
             int textRight = groupX - 8;
             String title = Component.translatable(this.mapping.getName()).getString();
             String category = Component.translatable(ViewBoardKeybindRules.categoryString(this.mapping)).getString();
             String key = this.mapping.getTranslatedKeyMessage().getString();
 
-            guiGraphics.drawString(font, title, left + 8, rowTop + 4, COLOR_TEXT, false);
-            guiGraphics.drawString(font, category + " | " + key, left + 8, rowTop + 14, COLOR_SUBTEXT, false);
+            guiGraphics.text(font, title, left + 8, rowTop + 4, COLOR_TEXT, false);
+            guiGraphics.text(font, category + " | " + key, left + 8, rowTop + 14, COLOR_SUBTEXT, false);
 
             if (font.width(title) > textRight - left - 12) {
                 guiGraphics.fill(textRight - 12, rowTop + 3, textRight, rowTop + 12, 0xE0151515);

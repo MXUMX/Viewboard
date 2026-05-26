@@ -12,7 +12,7 @@ import java.util.List;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -70,26 +70,20 @@ public final class KeyboardViewScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        this.renderMenuBackground(guiGraphics);
-    }
-
-    @Override
-    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+    public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
         this.hoveredKey = null;
         this.rules.syncRuntimeState();
-        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
         this.renderPanel(guiGraphics);
 
-        guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 8, COLOR_TEXT_LIGHT);
-        guiGraphics.drawCenteredString(this.font, Component.translatable("viewboard.screen.subtitle"), this.width / 2, 18, COLOR_TEXT_SUBTLE);
+        guiGraphics.centeredText(this.font, this.title, this.width / 2, 8, COLOR_TEXT_LIGHT);
+        guiGraphics.centeredText(this.font, Component.translatable("viewboard.screen.subtitle"), this.width / 2, 18, COLOR_TEXT_SUBTLE);
         int legendBottom = this.renderLegend(guiGraphics, 64);
         this.renderKeyboard(guiGraphics, mouseX, mouseY, legendBottom + 10, this.height - 54);
 
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
+        super.extractRenderState(guiGraphics, mouseX, mouseY, partialTick);
 
         if (this.hoveredKey != null) {
-            guiGraphics.renderComponentTooltip(this.font, this.createTooltip(this.hoveredKey.key()), mouseX, mouseY);
+            guiGraphics.setComponentTooltipForNextFrame(this.font, this.createTooltip(this.hoveredKey.key()), mouseX, mouseY);
         }
     }
 
@@ -103,7 +97,7 @@ public final class KeyboardViewScreen extends Screen {
         this.layoutButton.setMessage(Component.translatable("viewboard.screen.layout", Component.literal(this.rules.selectedLayout().displayName())));
     }
 
-    private void renderPanel(GuiGraphics guiGraphics) {
+    private void renderPanel(GuiGraphicsExtractor guiGraphics) {
         int left = 12;
         int top = 30;
         int right = this.width - 12;
@@ -115,7 +109,7 @@ public final class KeyboardViewScreen extends Screen {
         guiGraphics.fill(right - 1, top, right, bottom, COLOR_BORDER);
     }
 
-    private int renderLegend(GuiGraphics guiGraphics, int startY) {
+    private int renderLegend(GuiGraphicsExtractor guiGraphics, int startY) {
         LegendItem[] items = new LegendItem[] {
             new LegendItem(COLOR_SINGLE, Component.translatable("viewboard.legend.single")),
             new LegendItem(COLOR_CONFLICT, Component.translatable("viewboard.legend.conflict")),
@@ -139,16 +133,16 @@ public final class KeyboardViewScreen extends Screen {
         return y + 14;
     }
 
-    private void drawLegendChip(GuiGraphics guiGraphics, int x, int y, int color, Component text) {
+    private void drawLegendChip(GuiGraphicsExtractor guiGraphics, int x, int y, int color, Component text) {
         guiGraphics.fill(x, y, x + 12, y + 12, color);
         guiGraphics.fill(x, y, x + 12, y + 1, COLOR_BORDER);
         guiGraphics.fill(x, y + 11, x + 12, y + 12, COLOR_BORDER);
         guiGraphics.fill(x, y, x + 1, y + 12, COLOR_BORDER);
         guiGraphics.fill(x + 11, y, x + 12, y + 12, COLOR_BORDER);
-        guiGraphics.drawString(this.font, text, x + 18, y + 2, COLOR_TEXT_LIGHT, false);
+        guiGraphics.text(this.font, text, x + 18, y + 2, COLOR_TEXT_LIGHT, false);
     }
 
-    private void renderKeyboard(GuiGraphics guiGraphics, int mouseX, int mouseY, int contentTop, int contentBottom) {
+    private void renderKeyboard(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, int contentTop, int contentBottom) {
         float availableWidth = this.width - 44.0F;
         float availableHeight = Math.max(60.0F, contentBottom - contentTop - 6.0F);
         int unitSize = Math.max(10, (int) Math.floor(Math.min(
@@ -195,7 +189,7 @@ public final class KeyboardViewScreen extends Screen {
         }
     }
 
-    private void drawFittedLabel(GuiGraphics guiGraphics, Font font, String label, int x, int y, int width, int height, int color) {
+    private void drawFittedLabel(GuiGraphicsExtractor guiGraphics, Font font, String label, int x, int y, int width, int height, int color) {
         String renderLabel = label;
         float scale = 1.0F;
         for (int attempt = 0; attempt < 2; attempt++) {
@@ -223,11 +217,11 @@ public final class KeyboardViewScreen extends Screen {
         float drawX = x + (width - finalWidth * scale) / 2.0F;
         float drawY = y + (height - font.lineHeight * scale) / 2.0F;
 
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(drawX, drawY, 0.0F);
-        guiGraphics.pose().scale(scale, scale, 1.0F);
-        guiGraphics.drawString(font, renderLabel, 0, 0, color, false);
-        guiGraphics.pose().popPose();
+        guiGraphics.pose().pushMatrix();
+        guiGraphics.pose().translate(drawX, drawY);
+        guiGraphics.pose().scale(scale, scale);
+        guiGraphics.text(font, renderLabel, 0, 0, color, false);
+        guiGraphics.pose().popMatrix();
     }
 
     private int getKeyColor(InputConstants.Key key) {

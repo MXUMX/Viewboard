@@ -1,0 +1,13 @@
+{
+  "required": false,
+  "minVersion": "0.8.7",
+  "package": "com.mx.viewboard.client.compat.controlling",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "ControllingDisplayModeMixin",
+    "ControllingKeyEntryMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}
