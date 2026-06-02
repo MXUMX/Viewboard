@@ -75,6 +75,13 @@ public final class ViewBoardClientEvents {
 
         // Patch vanilla duplicate warnings + tooltip indicators using ViewBoard's effective rules.
         ControlsScreenBridge.decorate(keyBindsScreen);
+
+        for (RowAction action : positionControlsRowActions(keyBindsScreen)) {
+            if (action.contains(event.getMouseX(), event.getMouseY())) {
+                event.getGuiGraphics().setComponentTooltipForNextFrame(Minecraft.getInstance().font, List.of(action.tooltip()), event.getMouseX(), event.getMouseY());
+                break;
+            }
+        }
     }
 
     @SubscribeEvent
@@ -266,9 +273,6 @@ public final class ViewBoardClientEvents {
         int textX = action.x() + (action.width() - Minecraft.getInstance().font.width(action.label())) / 2;
         int textY = action.y() + 6;
         graphics.text(Minecraft.getInstance().font, action.label(), textX, textY, 0xFFFFFFFF, false);
-        if (hovered) {
-            graphics.setComponentTooltipForNextFrame(Minecraft.getInstance().font, List.of(action.tooltip()), mouseX, mouseY);
-        }
     }
 
     private static void performRowAction(KeyBindsScreen screen, RowAction action) {
