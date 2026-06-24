@@ -75,13 +75,6 @@ public final class ViewBoardClientEvents {
 
         // Patch vanilla duplicate warnings + tooltip indicators using ViewBoard's effective rules.
         ControlsScreenBridge.decorate(keyBindsScreen);
-
-        for (RowAction action : positionControlsRowActions(keyBindsScreen)) {
-            if (action.contains(event.getMouseX(), event.getMouseY())) {
-                event.getGuiGraphics().setComponentTooltipForNextFrame(Minecraft.getInstance().font, List.of(action.tooltip()), event.getMouseX(), event.getMouseY());
-                break;
-            }
-        }
     }
 
     @SubscribeEvent
@@ -90,7 +83,7 @@ public final class ViewBoardClientEvents {
             return;
         }
 
-        if (dispatchRowButtonClick(keyBindsScreen, event.getMouseButtonEvent(), event.isDoubleClick())) {
+        if (dispatchRowButtonClick(keyBindsScreen, event.getMouseButtonEvent())) {
             event.setCanceled(true);
         }
     }
@@ -114,8 +107,29 @@ public final class ViewBoardClientEvents {
 
         // Position after vanilla has rendered the visible rows (so change/reset button Y is correct).
         List<RowAction> actions = positionControlsRowActions(keyBindsScreen);
+        ClipBounds clipBounds = controlsListClipBounds(keyBindsScreen);
+        if (clipBounds == null) {
+            return;
+        }
+
+        event.getGuiGraphics().enableScissor(clipBounds.left(), clipBounds.top(), clipBounds.right(), clipBounds.bottom());
+        Component hoveredTooltip = null;
         for (RowAction action : actions) {
             renderRowAction(event.getGuiGraphics(), action, event.getMouseX(), event.getMouseY());
+            if (clipBounds.contains(event.getMouseX(), event.getMouseY()) && action.contains(event.getMouseX(), event.getMouseY())) {
+                hoveredTooltip = action.tooltip();
+            }
+        }
+        event.getGuiGraphics().disableScissor();
+
+        if (hoveredTooltip != null) {
+            event.getGuiGraphics().setComponentTooltipForNextFrame(
+                Minecraft.getInstance().font,
+                List.of(hoveredTooltip),
+                event.getMouseX(),
+                event.getMouseY()
+            );
+            event.getGuiGraphics().extractDeferredElements(event.getMouseX(), event.getMouseY(), event.getPartialTick());
         }
     }
 
@@ -131,15 +145,15 @@ public final class ViewBoardClientEvents {
     }
 
     private static List<RowAction> positionControlsRowActions(KeyBindsScreen screen) {
-        KeyBindsList list;
+        Object list;
         try {
             Field listField = KeyBindsScreen.class.getDeclaredField("keyBindsList");
             listField.setAccessible(true);
             Object rawList = listField.get(screen);
-            if (!(rawList instanceof KeyBindsList tmp)) {
+            if (rawList == null) {
                 return List.of();
             }
-            list = tmp;
+            list = rawList;
         } catch (Exception ignored) {
             return List.of();
         }
@@ -148,24 +162,38 @@ public final class ViewBoardClientEvents {
         List<RowAction> actions = CONTROLS_ROW_ACTIONS.computeIfAbsent(screen, unused -> new ArrayList<>());
         actions.clear();
 
-        // Vanilla 1.21.1: scrollBarX() == getRowRight() + 6 + 2
-        int scrollBarX = list.getRowRight() + 8;
-        for (Object entry : list.children()) {
+        int listY = intMethod(list, "getY", 0);
+        int listBottom = intMethod(list, "getBottom", screen.height);
+        int listLeft = intMethod(list, "getRowLeft", 0);
+        int index = 0;
+        for (Object entry : listChildren(list)) {
             try {
-                int rowTop = (int) entry.getClass().getMethod("getY").invoke(entry);
-                int rowBottom = rowTop + (int) entry.getClass().getMethod("getHeight").invoke(entry);
-                if (rowBottom < list.getY() || rowTop > list.getBottom()) {
-                    continue;
-                }
-
                 Class<?> clazz = entry.getClass();
                 net.minecraft.client.KeyMapping mapping = ControlsScreenBridge.mappingField(entry);
                 if (mapping == null) {
+                    index++;
                     continue;
                 }
 
                 Button changeButton = ControlsScreenBridge.buttonField(entry, "changeButton", "btnChangeKeyBinding");
                 Button resetButton = ControlsScreenBridge.buttonField(entry, "resetButton", "btnResetKeyBinding");
+                int rowTop = intMethod(list, "getRowTop", index, Integer.MIN_VALUE);
+                int rowBottom = intMethod(list, "getRowBottom", index, Integer.MIN_VALUE);
+                if (rowTop == Integer.MIN_VALUE || rowBottom == Integer.MIN_VALUE) {
+                    rowTop = intMethod(entry, "getY", Integer.MIN_VALUE);
+                    int rowHeight = intMethod(entry, "getHeight", Math.max(changeButton.getHeight(), resetButton.getHeight()));
+                    if (rowTop == Integer.MIN_VALUE) {
+                        rowTop = changeButton.getY();
+                    }
+                    if (rowHeight <= 0) {
+                        rowHeight = 20;
+                    }
+                    rowBottom = rowTop + rowHeight;
+                }
+                if (rowTop <= 0 || rowBottom < listY || rowTop > listBottom) {
+                    index++;
+                    continue;
+                }
 
                 int iconW = 20;
                 int gap = 2;
@@ -175,21 +203,14 @@ public final class ViewBoardClientEvents {
                 if (y <= 0) {
                     y = rowTop;
                 }
-                // Vanilla math:
-                // i = scrollBarX - resetW - 10
-                // j = getContentY() - 2
-                // k = i - 5 - changeW
-                int resetW = resetButton.getWidth();
-                int changeW = changeButton.getWidth();
-                int i = scrollBarX - resetW - 10;
-                int changeX = i - 5 - changeW;
+                int changeX = changeButton.getX();
 
                 int ignoreX = changeX - gap - iconW;
                 int groupX = ignoreX - gap - iconW;
 
                 // Keep icons from overlapping the key name area (per-row width, not global max).
                 // KeyBindsList entries are anchored to list.getRowLeft(), so contentX is stable.
-                int contentX = list.getRowLeft() + 2;
+                int contentX = listLeft + 2;
                 int nameRight = contentX + 120; // conservative fallback if reflection fails
                 try {
                     Field nameField = clazz.getDeclaredField("name");
@@ -223,11 +244,18 @@ public final class ViewBoardClientEvents {
             } catch (Exception ignored) {
                 // Keep rendering even if one entry changed shape.
             }
+
+            index++;
         }
         return actions;
     }
 
-    private static boolean dispatchRowButtonClick(KeyBindsScreen screen, MouseButtonEvent event, boolean doubleClick) {
+    private static boolean dispatchRowButtonClick(KeyBindsScreen screen, MouseButtonEvent event) {
+        ClipBounds clipBounds = controlsListClipBounds(screen);
+        if (clipBounds == null || !clipBounds.contains(event.x(), event.y())) {
+            return false;
+        }
+
         for (RowAction action : positionControlsRowActions(screen)) {
             if (action.contains(event.x(), event.y())) {
                 performRowAction(screen, action);
@@ -258,6 +286,61 @@ public final class ViewBoardClientEvents {
         } catch (Exception ignored) {
             // Best-effort UI refresh only.
         }
+    }
+
+    private static ClipBounds controlsListClipBounds(KeyBindsScreen screen) {
+        try {
+            Field listField = KeyBindsScreen.class.getDeclaredField("keyBindsList");
+            listField.setAccessible(true);
+            Object list = listField.get(screen);
+            if (list == null) {
+                return null;
+            }
+
+            int left = intMethod(list, "getX", 0);
+            int top = intMethod(list, "getY", 0);
+            int right = intMethod(list, "getRight", screen.width);
+            int bottom = intMethod(list, "getBottom", screen.height);
+            if (right <= left || bottom <= top) {
+                return null;
+            }
+            return new ClipBounds(left, top, right, bottom);
+        } catch (ReflectiveOperationException ignored) {
+            return null;
+        }
+    }
+
+    private static java.util.List<?> listChildren(Object list) {
+        try {
+            Object value = list.getClass().getMethod("children").invoke(list);
+            return value instanceof java.util.List<?> children ? children : java.util.List.of();
+        } catch (ReflectiveOperationException ignored) {
+            return java.util.List.of();
+        }
+    }
+
+    private static int intMethod(Object target, String name, int fallback) {
+        try {
+            Object value = target.getClass().getMethod(name).invoke(target);
+            return value instanceof Number number ? number.intValue() : fallback;
+        } catch (ReflectiveOperationException ignored) {
+            return fallback;
+        }
+    }
+
+    private static int intMethod(Object target, String name, int argument, int fallback) {
+        Class<?> current = target.getClass();
+        while (current != null) {
+            try {
+                var method = current.getDeclaredMethod(name, int.class);
+                method.setAccessible(true);
+                Object value = method.invoke(target, argument);
+                return value instanceof Number number ? number.intValue() : fallback;
+            } catch (ReflectiveOperationException ignored) {
+                current = current.getSuperclass();
+            }
+        }
+        return fallback;
     }
 
     private static void renderRowAction(GuiGraphicsExtractor graphics, RowAction action, int mouseX, int mouseY) {
@@ -293,6 +376,12 @@ public final class ViewBoardClientEvents {
     private record RowAction(net.minecraft.client.KeyMapping mapping, RowActionType type, int x, int y, int width, int height, Component label, Component tooltip) {
         private boolean contains(double mouseX, double mouseY) {
             return mouseX >= this.x && mouseX < this.x + this.width && mouseY >= this.y && mouseY < this.y + this.height;
+        }
+    }
+
+    private record ClipBounds(int left, int top, int right, int bottom) {
+        private boolean contains(double mouseX, double mouseY) {
+            return mouseX >= this.left && mouseX < this.right && mouseY >= this.top && mouseY < this.bottom;
         }
     }
 }
