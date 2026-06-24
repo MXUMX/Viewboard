@@ -1,0 +1,12 @@
+{
+  "required": false,
+  "minVersion": "0.8.7",
+  "package": "com.mx.viewboard.client.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "KeyBindsListMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}
