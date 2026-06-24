@@ -4,10 +4,13 @@ import com.mx.viewboard.ViewBoardMod;
 import com.mx.viewboard.client.keybind.ControlsListWidthMode;
 import com.mx.viewboard.client.keybind.ViewBoardKeybindRules;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
 import net.minecraft.client.gui.screens.options.controls.KeyBindsList;
@@ -23,7 +26,7 @@ public final class ViewBoardClientEvents {
 
     private static final Map<KeyBindsScreen, Button> KEYBOARD_VIEW_BUTTONS = new WeakHashMap<>();
     private static final Map<KeyBindsScreen, Button> WIDTH_BUTTONS = new WeakHashMap<>();
-    private static final Map<KeyBindsScreen, Map<String, RowButtons>> CONTROLS_ROW_BUTTONS = new WeakHashMap<>();
+    private static final Map<KeyBindsScreen, List<RowAction>> CONTROLS_ROW_ACTIONS = new WeakHashMap<>();
     private static final ViewBoardKeybindRules RULES = ViewBoardKeybindRules.getInstance();
 
     private ViewBoardClientEvents() {}
@@ -51,11 +54,7 @@ public final class ViewBoardClientEvents {
         event.addListener(widthButton);
         WIDTH_BUTTONS.put(keyBindsScreen, widthButton);
 
-        try {
-            attachControlsRowButtons(event, keyBindsScreen);
-        } catch (Exception ignored) {
-            // Avoid impacting vanilla screen if reflection fails.
-        }
+        CONTROLS_ROW_ACTIONS.put(keyBindsScreen, new ArrayList<>());
     }
 
     @SubscribeEvent
@@ -85,21 +84,41 @@ public final class ViewBoardClientEvents {
             return;
         }
 
-        Map<String, RowButtons> byKey = CONTROLS_ROW_BUTTONS.get(keyBindsScreen);
-        if (byKey == null || byKey.isEmpty()) {
+        // Position after vanilla has rendered the visible rows (so change/reset button Y is correct).
+        List<RowAction> actions = positionControlsRowActions(keyBindsScreen);
+        ClipBounds clipBounds = controlsListClipBounds(keyBindsScreen);
+        if (clipBounds == null) {
             return;
         }
 
-        // Position after vanilla has rendered the visible rows (so change/reset button Y is correct).
-        positionControlsRowButtons(keyBindsScreen);
+        Component hoveredTooltip = null;
+        event.getGuiGraphics().enableScissor(clipBounds.left(), clipBounds.top(), clipBounds.right(), clipBounds.bottom());
+        for (RowAction action : actions) {
+            renderRowAction(event.getGuiGraphics(), action, event.getMouseX(), event.getMouseY());
+            if (clipBounds.contains(event.getMouseX(), event.getMouseY()) && action.contains(event.getMouseX(), event.getMouseY())) {
+                hoveredTooltip = action.tooltip();
+            }
+        }
+        event.getGuiGraphics().disableScissor();
 
-        for (RowButtons buttons : byKey.values()) {
-            if (buttons.group().visible) {
-                buttons.group().render(event.getGuiGraphics(), event.getMouseX(), event.getMouseY(), event.getPartialTick());
-            }
-            if (buttons.ignore().visible) {
-                buttons.ignore().render(event.getGuiGraphics(), event.getMouseX(), event.getMouseY(), event.getPartialTick());
-            }
+        if (hoveredTooltip != null) {
+            event.getGuiGraphics().renderComponentTooltip(
+                Minecraft.getInstance().font,
+                java.util.List.of(hoveredTooltip),
+                event.getMouseX(),
+                event.getMouseY()
+            );
+        }
+    }
+
+    @SubscribeEvent
+    public static void onMousePressed(ScreenEvent.MouseButtonPressed.Pre event) {
+        if (!(event.getScreen() instanceof KeyBindsScreen keyBindsScreen)) {
+            return;
+        }
+
+        if (dispatchRowActionClick(keyBindsScreen, event.getMouseX(), event.getMouseY())) {
+            event.setCanceled(true);
         }
     }
 
@@ -114,127 +133,46 @@ public final class ViewBoardClientEvents {
         }
     }
 
-    private static void attachControlsRowButtons(ScreenEvent.Init.Post event, KeyBindsScreen screen) throws Exception {
-        Field listField = KeyBindsScreen.class.getDeclaredField("keyBindsList");
-        listField.setAccessible(true);
-        Object list = listField.get(screen);
-        if (list == null) {
-            return;
+    private static boolean dispatchRowActionClick(KeyBindsScreen screen, double mouseX, double mouseY) {
+        ClipBounds clipBounds = controlsListClipBounds(screen);
+        if (clipBounds == null || !clipBounds.contains(mouseX, mouseY)) {
+            return false;
         }
 
-        RULES.ensureLoaded();
-
-        Map<String, RowButtons> byKey = new java.util.LinkedHashMap<>();
-
-        for (Object entry : listChildren(list)) {
-            Class<?> clazz = entry.getClass();
-            KeyMapping mapping;
-            try {
-                mapping = ControlsScreenBridge.mappingField(entry);
-            } catch (ReflectiveOperationException ignored) {
-                continue;
+        for (RowAction action : positionControlsRowActions(screen)) {
+            if (action.contains(mouseX, mouseY)) {
+                performRowAction(screen, action);
+                return true;
             }
-            if (mapping == null) {
-                continue;
-            }
-
-            if (byKey.containsKey(mapping.getName())) {
-                continue;
-            }
-
-            Button groupButton = Button.builder(Component.literal("G"), clicked ->
-                Minecraft.getInstance().setScreen(new GroupEditorScreen(screen, mapping)))
-                .bounds(0, 0, 20, 20)
-                .build();
-            groupButton.setTooltip(net.minecraft.client.gui.components.Tooltip.create(Component.translatable("viewboard.controls.button.group")));
-
-            Button ignoreButton = Button.builder(Component.literal("I"), clicked -> {
-                RULES.setIgnored(mapping, !RULES.isIgnored(mapping));
-                refreshControlsListLayout(screen);
-            }).bounds(0, 0, 20, 20).build();
-            // tooltip + message are refreshed each frame in positionControlsRowButtons
-
-            event.addListener(groupButton);
-            event.addListener(ignoreButton);
-
-            byKey.put(mapping.getName(), new RowButtons(groupButton, ignoreButton));
         }
 
-        CONTROLS_ROW_BUTTONS.put(screen, byKey);
+        return false;
     }
 
-    private static void positionControlsRowButtons(KeyBindsScreen screen) {
-        Map<String, RowButtons> byKey = CONTROLS_ROW_BUTTONS.get(screen);
-        if (byKey == null || byKey.isEmpty()) {
-            return;
-        }
-
+    private static List<RowAction> positionControlsRowActions(KeyBindsScreen screen) {
         Object list;
         try {
             Field listField = KeyBindsScreen.class.getDeclaredField("keyBindsList");
             listField.setAccessible(true);
             Object rawList = listField.get(screen);
             if (rawList == null) {
-                return;
+                return List.of();
             }
             list = rawList;
         } catch (Exception ignored) {
-            return;
+            return List.of();
         }
 
         RULES.ensureLoaded();
+        List<RowAction> actions = CONTROLS_ROW_ACTIONS.computeIfAbsent(screen, unused -> new ArrayList<>());
+        actions.clear();
 
-        // Hide everything by default; we'll re-enable visible rows.
-        for (RowButtons buttons : byKey.values()) {
-            buttons.group().visible = false;
-            buttons.group().active = false;
-            buttons.ignore().visible = false;
-            buttons.ignore().active = false;
-        }
-
-        // Vanilla 1.21.1: scrollBarX() == getRowRight() + 6 + 2
-        int scrollBarX = intMethod(list, "getRowRight", screen.width - 28) + 8;
-        int itemHeight = 20;
-        int headerHeight = 0;
-        double scrollAmount = 0.0;
-
-        // Prefer public API if present, but fall back to reflection if needed.
-        try {
-            var getScrollAmount = list.getClass().getMethod("getScrollAmount");
-            Object value = getScrollAmount.invoke(list);
-            if (value instanceof Number n) {
-                scrollAmount = n.doubleValue();
-            }
-        } catch (Exception ignored) {
-            try {
-                var scrollAmountField = list.getClass().getSuperclass().getDeclaredField("scrollAmount");
-                scrollAmountField.setAccessible(true);
-                scrollAmount = scrollAmountField.getDouble(list);
-            } catch (Exception ignored2) {
-                // best-effort; 0.0 is fine
-            }
-        }
-
-        try {
-            var headerHeightField = list.getClass().getSuperclass().getDeclaredField("headerHeight");
-            headerHeightField.setAccessible(true);
-            headerHeight = headerHeightField.getInt(list);
-        } catch (Exception ignored) {
-            headerHeight = 0;
-        }
-
+        int listY = intMethod(list, "getY", 0);
+        int listBottom = intMethod(list, "getBottom", screen.height);
+        int listLeft = intMethod(list, "getRowLeft", 0);
         int index = 0;
         for (Object entry : listChildren(list)) {
             try {
-                // Compute the row's top/bottom exactly like vanilla's AbstractSelectionList#getRowTop.
-                int listY = intMethod(list, "getY", 0);
-                int rowTop = listY + 4 - (int) scrollAmount + index * itemHeight + headerHeight;
-                int rowBottom = rowTop + itemHeight;
-                if (rowBottom < listY || rowTop > intMethod(list, "getBottom", screen.height)) {
-                    index++;
-                    continue;
-                }
-
                 Class<?> clazz = entry.getClass();
                 net.minecraft.client.KeyMapping mapping = ControlsScreenBridge.mappingField(entry);
                 if (mapping == null) {
@@ -244,9 +182,20 @@ public final class ViewBoardClientEvents {
 
                 Button changeButton = ControlsScreenBridge.buttonField(entry, "changeButton", "btnChangeKeyBinding");
                 Button resetButton = ControlsScreenBridge.buttonField(entry, "resetButton", "btnResetKeyBinding");
-
-                RowButtons buttons = byKey.get(mapping.getName());
-                if (buttons == null) {
+                int rowTop = intMethod(list, "getRowTop", index, Integer.MIN_VALUE);
+                int rowBottom = intMethod(list, "getRowBottom", index, Integer.MIN_VALUE);
+                if (rowTop == Integer.MIN_VALUE || rowBottom == Integer.MIN_VALUE) {
+                    rowTop = intMethod(entry, "getY", Integer.MIN_VALUE);
+                    int rowHeight = intMethod(entry, "getHeight", Math.max(changeButton.getHeight(), resetButton.getHeight()));
+                    if (rowTop == Integer.MIN_VALUE) {
+                        rowTop = changeButton.getY();
+                    }
+                    if (rowHeight <= 0) {
+                        rowHeight = 20;
+                    }
+                    rowBottom = rowTop + rowHeight;
+                }
+                if (rowTop <= 0 || rowBottom < listY || rowTop > listBottom) {
                     index++;
                     continue;
                 }
@@ -259,21 +208,14 @@ public final class ViewBoardClientEvents {
                 if (y <= 0) {
                     y = rowTop;
                 }
-                // Vanilla math:
-                // i = scrollBarX - resetW - 10
-                // j = getContentY() - 2
-                // k = i - 5 - changeW
-                int resetW = resetButton.getWidth();
-                int changeW = changeButton.getWidth();
-                int i = scrollBarX - resetW - 10;
-                int changeX = i - 5 - changeW;
+                int changeX = changeButton.getX();
 
                 int ignoreX = changeX - gap - iconW;
                 int groupX = ignoreX - gap - iconW;
 
                 // Keep icons from overlapping the key name area (per-row width, not global max).
                 // KeyBindsList entries are anchored to list.getRowLeft(), so contentX is stable.
-                int contentX = intMethod(list, "getRowLeft", 0) + 2;
+                int contentX = listLeft + 2;
                 int nameRight = contentX + 120; // conservative fallback if reflection fails
                 try {
                     Field nameField = clazz.getDeclaredField("name");
@@ -290,17 +232,16 @@ public final class ViewBoardClientEvents {
                     continue;
                 }
 
-                buttons.group().setPosition(groupX, y);
-                buttons.group().visible = true;
-                buttons.group().active = true;
-
-                buttons.ignore().setPosition(ignoreX, y);
-                buttons.ignore().visible = true;
-                buttons.ignore().active = true;
-
                 boolean ignored = RULES.isIgnored(mapping);
-                buttons.ignore().setMessage(Component.literal(ignored ? "!" : "I"));
-                buttons.ignore().setTooltip(net.minecraft.client.gui.components.Tooltip.create(
+                actions.add(new RowAction(mapping, RowActionType.GROUP, groupX, y, iconW, iconW, Component.literal("G"), Component.translatable("viewboard.controls.button.group")));
+                actions.add(new RowAction(
+                    mapping,
+                    RowActionType.IGNORE,
+                    ignoreX,
+                    y,
+                    iconW,
+                    iconW,
+                    Component.literal(ignored ? "!" : "I"),
                     ignored
                         ? Component.translatable("viewboard.controls.button.ignore_on")
                         : Component.translatable("viewboard.controls.button.ignore_off")
@@ -311,6 +252,7 @@ public final class ViewBoardClientEvents {
 
             index++;
         }
+        return actions;
     }
 
     private static Component widthButtonMessage() {
@@ -332,6 +274,53 @@ public final class ViewBoardClientEvents {
         }
     }
 
+    private static ClipBounds controlsListClipBounds(KeyBindsScreen screen) {
+        try {
+            Field listField = KeyBindsScreen.class.getDeclaredField("keyBindsList");
+            listField.setAccessible(true);
+            Object list = listField.get(screen);
+            if (list == null) {
+                return null;
+            }
+
+            int left = intMethod(list, "getX", 0);
+            int top = intMethod(list, "getY", 0);
+            int right = intMethod(list, "getRight", screen.width);
+            int bottom = intMethod(list, "getBottom", screen.height);
+            if (right <= left || bottom <= top) {
+                return null;
+            }
+            return new ClipBounds(left, top, right, bottom);
+        } catch (ReflectiveOperationException ignored) {
+            return null;
+        }
+    }
+
+    private static void renderRowAction(GuiGraphics graphics, RowAction action, int mouseX, int mouseY) {
+        boolean hovered = action.contains(mouseX, mouseY);
+        int fill = hovered ? 0xFF4A5568 : 0xFF242A33;
+        int border = hovered ? 0xFFFFFFFF : 0xFF7A8493;
+        graphics.fill(action.x(), action.y(), action.x() + action.width(), action.y() + action.height(), fill);
+        graphics.fill(action.x(), action.y(), action.x() + action.width(), action.y() + 1, border);
+        graphics.fill(action.x(), action.y() + action.height() - 1, action.x() + action.width(), action.y() + action.height(), border);
+        graphics.fill(action.x(), action.y(), action.x() + 1, action.y() + action.height(), border);
+        graphics.fill(action.x() + action.width() - 1, action.y(), action.x() + action.width(), action.y() + action.height(), border);
+
+        int textX = action.x() + (action.width() - Minecraft.getInstance().font.width(action.label())) / 2;
+        int textY = action.y() + 6;
+        graphics.drawString(Minecraft.getInstance().font, action.label(), textX, textY, 0xFFFFFFFF, false);
+    }
+
+    private static void performRowAction(KeyBindsScreen screen, RowAction action) {
+        switch (action.type()) {
+            case GROUP -> Minecraft.getInstance().setScreen(new GroupEditorScreen(screen, action.mapping()));
+            case IGNORE -> {
+                RULES.setIgnored(action.mapping(), !RULES.isIgnored(action.mapping()));
+                refreshControlsListLayout(screen);
+            }
+        }
+    }
+
     private static java.util.List<?> listChildren(Object list) {
         try {
             Object value = list.getClass().getMethod("children").invoke(list);
@@ -350,6 +339,35 @@ public final class ViewBoardClientEvents {
         }
     }
 
-    private record RowButtons(Button group, Button ignore) {
+    private static int intMethod(Object target, String name, int argument, int fallback) {
+        Class<?> current = target.getClass();
+        while (current != null) {
+            try {
+                var method = current.getDeclaredMethod(name, int.class);
+                method.setAccessible(true);
+                Object value = method.invoke(target, argument);
+                return value instanceof Number number ? number.intValue() : fallback;
+            } catch (ReflectiveOperationException ignored) {
+                current = current.getSuperclass();
+            }
+        }
+        return fallback;
+    }
+
+    private enum RowActionType {
+        GROUP,
+        IGNORE
+    }
+
+    private record RowAction(KeyMapping mapping, RowActionType type, int x, int y, int width, int height, Component label, Component tooltip) {
+        private boolean contains(double mouseX, double mouseY) {
+            return mouseX >= this.x && mouseX < this.x + this.width && mouseY >= this.y && mouseY < this.y + this.height;
+        }
+    }
+
+    private record ClipBounds(int left, int top, int right, int bottom) {
+        private boolean contains(double mouseX, double mouseY) {
+            return mouseX >= this.left && mouseX < this.right && mouseY >= this.top && mouseY < this.bottom;
+        }
     }
 }
