@@ -1,6 +1,7 @@
 package com.mx.viewboard.client;
 
 import com.mx.viewboard.ViewBoardMod;
+import com.mx.viewboard.client.keybind.ControlsListWidthMode;
 import com.mx.viewboard.client.keybind.ViewBoardKeybindRules;
 import java.lang.reflect.Field;
 import java.util.Map;
@@ -10,6 +11,7 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
 import net.minecraft.client.gui.screens.options.controls.KeyBindsList;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -21,6 +23,7 @@ import net.neoforged.neoforge.client.event.ScreenEvent;
 public final class ViewBoardClientEvents {
 
     private static final Map<KeyBindsScreen, Button> KEYBOARD_VIEW_BUTTONS = new WeakHashMap<>();
+    private static final Map<KeyBindsScreen, Button> WIDTH_BUTTONS = new WeakHashMap<>();
     private static final Map<KeyBindsScreen, Map<String, RowButtons>> CONTROLS_ROW_BUTTONS = new WeakHashMap<>();
     private static final ViewBoardKeybindRules RULES = ViewBoardKeybindRules.getInstance();
 
@@ -41,6 +44,14 @@ public final class ViewBoardClientEvents {
         event.addListener(button);
         KEYBOARD_VIEW_BUTTONS.put(keyBindsScreen, button);
 
+        Button widthButton = Button.builder(widthButtonMessage(), clicked -> {
+            RULES.cycleControlsListWidthMode();
+            clicked.setMessage(widthButtonMessage());
+            refreshControlsListLayout(keyBindsScreen);
+        }).bounds(keyBindsScreen.width - 126, 6, 120, 20).build();
+        event.addListener(widthButton);
+        WIDTH_BUTTONS.put(keyBindsScreen, widthButton);
+
         try {
             attachControlsRowButtons(event, keyBindsScreen);
         } catch (Exception ignored) {
@@ -58,6 +69,11 @@ public final class ViewBoardClientEvents {
         Button button = KEYBOARD_VIEW_BUTTONS.get(keyBindsScreen);
         if (button != null) {
             button.setPosition(keyBindsScreen.width - 106, keyBindsScreen.height - 27);
+        }
+        Button widthButton = WIDTH_BUTTONS.get(keyBindsScreen);
+        if (widthButton != null) {
+            widthButton.setPosition(keyBindsScreen.width - 126, 6);
+            widthButton.setMessage(widthButtonMessage());
         }
 
         // Patch vanilla duplicate warnings + tooltip indicators using ViewBoard's effective rules.
@@ -78,13 +94,43 @@ public final class ViewBoardClientEvents {
         // Position after vanilla has rendered the visible rows (so change/reset button Y is correct).
         positionControlsRowButtons(keyBindsScreen);
 
+        Component hoveredTooltip = null;
         for (RowButtons buttons : byKey.values()) {
             if (buttons.group().visible) {
                 buttons.group().render(event.getGuiGraphics(), event.getMouseX(), event.getMouseY(), event.getPartialTick());
+                if (buttons.group().isMouseOver(event.getMouseX(), event.getMouseY())) {
+                    hoveredTooltip = Component.translatable("viewboard.controls.button.group");
+                }
             }
             if (buttons.ignore().visible) {
                 buttons.ignore().render(event.getGuiGraphics(), event.getMouseX(), event.getMouseY(), event.getPartialTick());
+                if (buttons.ignore().isMouseOver(event.getMouseX(), event.getMouseY())) {
+                    hoveredTooltip = buttons.ignore().getMessage().getString().equals("!")
+                        ? Component.translatable("viewboard.controls.button.ignore_on")
+                        : Component.translatable("viewboard.controls.button.ignore_off");
+                }
             }
+        }
+
+        if (hoveredTooltip != null) {
+            event.getGuiGraphics().setComponentTooltipForNextFrame(
+                Minecraft.getInstance().font,
+                java.util.List.of(hoveredTooltip),
+                event.getMouseX(),
+                event.getMouseY()
+            );
+            event.getGuiGraphics().renderDeferredElements();
+        }
+    }
+
+    @SubscribeEvent
+    public static void onMousePressed(ScreenEvent.MouseButtonPressed.Pre event) {
+        if (!(event.getScreen() instanceof KeyBindsScreen keyBindsScreen)) {
+            return;
+        }
+
+        if (dispatchRowButtonClick(keyBindsScreen, event.getMouseButtonEvent(), event.isDoubleClick())) {
+            event.setCanceled(true);
         }
     }
 
@@ -99,11 +145,30 @@ public final class ViewBoardClientEvents {
         }
     }
 
+    private static boolean dispatchRowButtonClick(KeyBindsScreen screen, MouseButtonEvent event, boolean doubleClick) {
+        Map<String, RowButtons> byKey = CONTROLS_ROW_BUTTONS.get(screen);
+        if (byKey == null || byKey.isEmpty()) {
+            return false;
+        }
+
+        positionControlsRowButtons(screen);
+        for (RowButtons buttons : byKey.values()) {
+            if (buttons.group().visible && buttons.group().mouseClicked(event, doubleClick)) {
+                return true;
+            }
+            if (buttons.ignore().visible && buttons.ignore().mouseClicked(event, doubleClick)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static void attachControlsRowButtons(ScreenEvent.Init.Post event, KeyBindsScreen screen) throws Exception {
         Field listField = KeyBindsScreen.class.getDeclaredField("keyBindsList");
         listField.setAccessible(true);
-        Object rawList = listField.get(screen);
-        if (!(rawList instanceof KeyBindsList list)) {
+        Object list = listField.get(screen);
+        if (list == null) {
             return;
         }
 
@@ -111,17 +176,15 @@ public final class ViewBoardClientEvents {
 
         Map<String, RowButtons> byKey = new java.util.LinkedHashMap<>();
 
-        for (Object entry : list.children()) {
+        for (Object entry : listChildren(list)) {
             Class<?> clazz = entry.getClass();
-            Field mappingField;
+            KeyMapping mapping;
             try {
-                mappingField = clazz.getDeclaredField("key"); // 1.21.1
-            } catch (NoSuchFieldException e) {
-                continue; // category entry
+                mapping = ControlsScreenBridge.mappingField(entry);
+            } catch (ReflectiveOperationException ignored) {
+                continue;
             }
-            mappingField.setAccessible(true);
-            Object rawMapping = mappingField.get(entry);
-            if (!(rawMapping instanceof net.minecraft.client.KeyMapping mapping)) {
+            if (mapping == null) {
                 continue;
             }
 
@@ -137,6 +200,7 @@ public final class ViewBoardClientEvents {
 
             Button ignoreButton = Button.builder(Component.literal("I"), clicked -> {
                 RULES.setIgnored(mapping, !RULES.isIgnored(mapping));
+                refreshControlsListLayout(screen);
             }).bounds(0, 0, 20, 20).build();
             // tooltip + message are refreshed each frame in positionControlsRowButtons
 
@@ -155,15 +219,15 @@ public final class ViewBoardClientEvents {
             return;
         }
 
-        KeyBindsList list;
+        Object list;
         try {
             Field listField = KeyBindsScreen.class.getDeclaredField("keyBindsList");
             listField.setAccessible(true);
             Object rawList = listField.get(screen);
-            if (!(rawList instanceof KeyBindsList tmp)) {
+            if (rawList == null) {
                 return;
             }
-            list = tmp;
+            list = rawList;
         } catch (Exception ignored) {
             return;
         }
@@ -178,8 +242,7 @@ public final class ViewBoardClientEvents {
             buttons.ignore().active = false;
         }
 
-        // Vanilla 1.21.1: scrollBarX() == getRowRight() + 6 + 2
-        int scrollBarX = list.getRowRight() + 8;
+        int scrollBarX = intMethod(list, "getRowRight", screen.width - 28) + 8;
         int itemHeight = 20;
         int headerHeight = 0;
         double scrollAmount = 0.0;
@@ -210,32 +273,31 @@ public final class ViewBoardClientEvents {
         }
 
         int index = 0;
-        for (Object entry : list.children()) {
+        for (Object entry : listChildren(list)) {
             try {
-                // Compute the row's top/bottom exactly like vanilla's AbstractSelectionList#getRowTop.
-                int rowTop = list.getY() + 4 - (int) scrollAmount + index * itemHeight + headerHeight;
-                int rowBottom = rowTop + itemHeight;
-                if (rowBottom < list.getY() || rowTop > list.getBottom()) {
+                int listY = intMethod(list, "getY", 0);
+                int rowTop = intMethod(entry, "getY", Integer.MIN_VALUE);
+                int rowHeight = intMethod(entry, "getHeight", itemHeight);
+                if (rowTop == Integer.MIN_VALUE) {
+                    // Fallback for older entry classes that do not expose live row bounds.
+                    rowTop = listY + 4 - (int) scrollAmount + index * itemHeight + headerHeight;
+                    rowHeight = itemHeight;
+                }
+                int rowBottom = rowTop + rowHeight;
+                if (rowBottom < listY || rowTop > intMethod(list, "getBottom", screen.height)) {
                     index++;
                     continue;
                 }
 
                 Class<?> clazz = entry.getClass();
-                Field mappingField = clazz.getDeclaredField("key");
-                mappingField.setAccessible(true);
-                Object rawMapping = mappingField.get(entry);
-                if (!(rawMapping instanceof net.minecraft.client.KeyMapping mapping)) {
+                net.minecraft.client.KeyMapping mapping = ControlsScreenBridge.mappingField(entry);
+                if (mapping == null) {
                     index++;
                     continue;
                 }
 
-                Field changeButtonField = clazz.getDeclaredField("changeButton");
-                changeButtonField.setAccessible(true);
-                Button changeButton = (Button) changeButtonField.get(entry);
-
-                Field resetButtonField = clazz.getDeclaredField("resetButton");
-                resetButtonField.setAccessible(true);
-                Button resetButton = (Button) resetButtonField.get(entry);
+                Button changeButton = ControlsScreenBridge.buttonField(entry, "changeButton", "btnChangeKeyBinding");
+                Button resetButton = ControlsScreenBridge.buttonField(entry, "resetButton", "btnResetKeyBinding");
 
                 RowButtons buttons = byKey.get(mapping.getName());
                 if (buttons == null) {
@@ -265,7 +327,7 @@ public final class ViewBoardClientEvents {
 
                 // Keep icons from overlapping the key name area (per-row width, not global max).
                 // KeyBindsList entries are anchored to list.getRowLeft(), so contentX is stable.
-                int contentX = list.getRowLeft() + 2;
+                int contentX = intMethod(list, "getRowLeft", 0) + 2;
                 int nameRight = contentX + 120; // conservative fallback if reflection fails
                 try {
                     Field nameField = clazz.getDeclaredField("name");
@@ -302,6 +364,43 @@ public final class ViewBoardClientEvents {
             }
 
             index++;
+        }
+    }
+
+    private static Component widthButtonMessage() {
+        ControlsListWidthMode mode = RULES.controlsListWidthMode();
+        return Component.translatable("viewboard.controls.width", Component.translatable(mode.translationKey()));
+    }
+
+    private static void refreshControlsListLayout(KeyBindsScreen screen) {
+        try {
+            Field listField = KeyBindsScreen.class.getDeclaredField("keyBindsList");
+            listField.setAccessible(true);
+            Object rawList = listField.get(screen);
+            if (rawList instanceof KeyBindsList list) {
+                list.updateSizeAndPosition(list.getWidth(), list.getHeight(), list.getX(), list.getY());
+                list.resetMappingAndUpdateButtons();
+            }
+        } catch (Exception ignored) {
+            // Best-effort UI refresh only.
+        }
+    }
+
+    private static java.util.List<?> listChildren(Object list) {
+        try {
+            Object value = list.getClass().getMethod("children").invoke(list);
+            return value instanceof java.util.List<?> children ? children : java.util.List.of();
+        } catch (ReflectiveOperationException ignored) {
+            return java.util.List.of();
+        }
+    }
+
+    private static int intMethod(Object target, String name, int fallback) {
+        try {
+            Object value = target.getClass().getMethod(name).invoke(target);
+            return value instanceof Number number ? number.intValue() : fallback;
+        } catch (ReflectiveOperationException ignored) {
+            return fallback;
         }
     }
 

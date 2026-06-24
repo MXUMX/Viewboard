@@ -57,6 +57,15 @@ public final class ViewBoardKeybindRules {
         this.save();
     }
 
+    public ControlsListWidthMode controlsListWidthMode() {
+        return this.config().controlsListWidthMode();
+    }
+
+    public void cycleControlsListWidthMode() {
+        this.config().setControlsListWidthMode(this.controlsListWidthMode().next());
+        this.save();
+    }
+
     public boolean isIgnored(KeyMapping mapping) {
         return this.config().ignoredBindings().contains(mapping.getName());
     }

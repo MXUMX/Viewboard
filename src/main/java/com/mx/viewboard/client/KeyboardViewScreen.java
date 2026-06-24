@@ -56,7 +56,12 @@ public final class KeyboardViewScreen extends Screen {
 
         this.addRenderableWidget(Button.builder(Component.translatable("viewboard.screen.manage"), button ->
                 Minecraft.getInstance().setScreen(new KeybindRulesScreen(this)))
-            .bounds(this.width / 2 - 60, topButtonY, 120, 20)
+            .bounds(this.width / 2 - 126, topButtonY, 120, 20)
+            .build());
+
+        this.addRenderableWidget(Button.builder(Component.translatable("viewboard.screen.groups"), button ->
+                Minecraft.getInstance().setScreen(new GroupEditorScreen(this)))
+            .bounds(this.width / 2 + 6, topButtonY, 120, 20)
             .build());
 
         this.addRenderableWidget(Button.builder(Component.translatable("gui.back"), button -> this.onClose())
@@ -72,15 +77,9 @@ public final class KeyboardViewScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        this.renderMenuBackground(guiGraphics);
-    }
-
-    @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         this.hoveredKey = null;
         this.rules.syncRuntimeState();
-        this.renderBackground(guiGraphics, mouseX, mouseY, partialTick);
         this.renderPanel(guiGraphics);
 
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 8, COLOR_TEXT_LIGHT);
