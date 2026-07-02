@@ -2,7 +2,7 @@
 
 ## Port Status
 
-This branch (`codex/fabric-1.20.1-port`) targets Minecraft 1.20.1 on Fabric.
+This branch (`fabric-1.20.1-port`) targets Minecraft 1.20.1 on Fabric.
 
 Verified build target:
 - Minecraft `1.20.1`
@@ -25,7 +25,7 @@ CURRENT PROBLEMS:
 
 ViewBoard is a client-side Fabric mod for Minecraft 1.20.1 that adds a keyboard map screen and keybind-management tools to the controls menu. The screens help show which keys are used, conflicting, ignored, grouped, or still free.
 
-This branch (`codex/fabric-1.20.1-port`) targets Minecraft `1.20.1` on Fabric Loader `0.15.11` with Fabric API `0.92.2+1.20.1`.
+This branch (`fabric-1.20.1-port`) targets Minecraft `1.20.1` on Fabric Loader `0.15.11` with Fabric API `0.92.2+1.20.1`.
 
 ViewBoard supports most GUI scales, but the keyboard view is currently most comfortable at GUI scale `3` or below.
 
