@@ -1,6 +1,7 @@
 package com.mx.viewboard.client;
 
 import com.mx.viewboard.client.keybind.ViewBoardKeybindRules;
+import com.mx.viewboard.client.keybind.ViewBoardConflictHooks;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
@@ -68,10 +69,7 @@ public final class ControlsScreenBridge {
                 return;
             }
 
-            // --- changeButton ---
-            Field changeButtonField = clazz.getDeclaredField("changeButton");
-            changeButtonField.setAccessible(true);
-            Button changeButton = (Button) changeButtonField.get(entry);
+            Button changeButton = buttonField(entry, "changeButton", "btnChangeKeyBinding");
 
             // --- collision logic ---
             boolean collision = hasEffectiveConflict(mapping, states);
@@ -85,34 +83,18 @@ public final class ControlsScreenBridge {
                 // field removed/renamed in newer versions → ignore safely
             }
 
-            // --- tooltip ---
-            changeButton.setTooltip(Tooltip.create(createTooltip(mapping, collision, states)));
-
-            if (screen.selectedKey == mapping) {
-                return;
-            }
-
-            Component baseMessage = mapping.getTranslatedKeyMessage();
-
-            if (collision) {
-                changeButton.setMessage(Component.literal("[")
-                    .append(baseMessage.copy().withStyle(ChatFormatting.WHITE))
-                    .append("]")
-                    .withStyle(ChatFormatting.RED));
-            } else {
-                changeButton.setMessage(baseMessage);
-            }
+            applyButtonPresentation(screen, mapping, changeButton, collision, states);
 
         } catch (Exception e) {
             // Never crash UI; avoid noisy logs for render-time reflection.
         }
     }
 
-    private static boolean hasEffectiveConflict(KeyMapping mapping, List<ViewBoardKeybindRules.KeyBindingState> states) {
+    public static boolean hasEffectiveConflict(KeyMapping mapping, List<ViewBoardKeybindRules.KeyBindingState> states) {
         if (mapping.isUnbound()) {
             return false;
         }
-        if (RULES.isIgnored(mapping)) {
+        if (ViewBoardConflictHooks.isIgnored(mapping)) {
             return false;
         }
 
@@ -131,7 +113,7 @@ public final class ControlsScreenBridge {
             }
 
             if ((!Objects.equals(other.groupId(), state.groupId()) || state.groupId() == null)
-                && conflictsWith(mapping, other.mapping())) {
+                && ViewBoardConflictHooks.conflictsVisible(mapping, other.mapping())) {
                 return true;
             }
         }
@@ -139,12 +121,38 @@ public final class ControlsScreenBridge {
         return false;
     }
 
-    private static Component createTooltip(KeyMapping mapping, boolean collision, List<ViewBoardKeybindRules.KeyBindingState> states) {
+    public static void applyButtonPresentation(KeyBindsScreen screen, KeyMapping mapping, Button changeButton, boolean collision, List<ViewBoardKeybindRules.KeyBindingState> states) {
+        changeButton.setTooltip(Tooltip.create(createTooltip(mapping, collision, states)));
+
+        if (screen.selectedKey == mapping) {
+            changeButton.setMessage(Component.literal("> ")
+                .append(formatKeyMessage(mapping, collision).copy().withStyle(ChatFormatting.WHITE, ChatFormatting.UNDERLINE))
+                .append(" <")
+                .withStyle(ChatFormatting.YELLOW));
+            return;
+        }
+
+        changeButton.setMessage(formatKeyMessage(mapping, collision));
+    }
+
+    public static Component formatKeyMessage(KeyMapping mapping, boolean collision) {
+        Component baseMessage = mapping.getTranslatedKeyMessage();
+        if (!collision) {
+            return baseMessage;
+        }
+
+        return Component.literal("[")
+            .append(baseMessage.copy().withStyle(ChatFormatting.WHITE))
+            .append("]")
+            .withStyle(ChatFormatting.RED);
+    }
+
+    public static Component createTooltip(KeyMapping mapping, boolean collision, List<ViewBoardKeybindRules.KeyBindingState> states) {
         List<Component> lines = new ArrayList<>();
 
         lines.add(Component.translatable(mapping.getName()));
 
-        if (RULES.isIgnored(mapping)) {
+        if (ViewBoardConflictHooks.isIgnored(mapping)) {
             lines.add(Component.translatable("viewboard.tooltip.ignored"));
         }
 
@@ -169,7 +177,7 @@ public final class ControlsScreenBridge {
 
                 if (!Objects.equals(state.keybindId(), mapping.getName())
                     && !state.ignored()
-                    && conflictsWith(mapping, state.mapping())) {
+                    && ViewBoardConflictHooks.conflictsVisible(mapping, state.mapping())) {
                     conflicts.add(Component.translatable(state.mapping().getName()));
                 }
             }
@@ -200,7 +208,31 @@ public final class ControlsScreenBridge {
         return tooltip;
     }
 
-    private static boolean conflictsWith(KeyMapping left, KeyMapping right) {
-        return left.same(right) || left.hasKeyModifierConflict(right) || right.hasKeyModifierConflict(left);
+    public static KeyMapping mappingField(Object entry) throws ReflectiveOperationException {
+        Field field = field(entry.getClass(), "key", "keyMapping");
+        field.setAccessible(true);
+        Object value = field.get(entry);
+        return value instanceof KeyMapping mapping ? mapping : null;
+    }
+
+    public static Button buttonField(Object entry, String... names) throws ReflectiveOperationException {
+        Field field = field(entry.getClass(), names);
+        field.setAccessible(true);
+        return (Button) field.get(entry);
+    }
+
+    public static Field field(Class<?> type, String... names) throws NoSuchFieldException {
+        Class<?> current = type;
+        while (current != null) {
+            for (String name : names) {
+                try {
+                    return current.getDeclaredField(name);
+                } catch (NoSuchFieldException ignored) {
+                    // try next alias/superclass
+                }
+            }
+            current = current.getSuperclass();
+        }
+        throw new NoSuchFieldException(String.join("/", names));
     }
 }

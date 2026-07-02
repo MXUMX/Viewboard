@@ -3,6 +3,7 @@ plugins {
     id 'idea'
     id 'maven-publish'
     id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'org.spongepowered.mixin' version '0.7.38'
 }
 
 version = mod_version
@@ -25,6 +26,7 @@ minecraft {
     runs {
         client {
             workingDirectory project.file('run')
+            arg '--mixin.config=viewboard.mixins.json'
             mods {
                 "${mod_id}" {
                     source sourceSets.main
@@ -36,19 +38,34 @@ minecraft {
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
     testImplementation 'com.google.code.gson:gson:2.10.1'
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }
 
+mixin {
+    add sourceSets.main, "${mod_id}.refmap.json"
+    config "${mod_id}.mixins.json"
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.release = 17
+    options.compilerArgs += ['-AdisableTargetValidator=true']
 }
 
 tasks.named('test', Test).configure {
     useJUnitPlatform()
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+            'MixinConfigs': "${mod_id}.mixins.json"
+        ])
+    }
 }
 
 tasks.named('processResources', ProcessResources).configure {

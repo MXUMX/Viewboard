@@ -54,7 +54,12 @@ public final class KeyboardViewScreen extends Screen {
 
         this.addRenderableWidget(Button.builder(Component.translatable("viewboard.screen.manage"), button ->
                 Minecraft.getInstance().setScreen(new KeybindRulesScreen(this)))
-            .bounds(this.width / 2 - 60, topButtonY, 120, 20)
+            .bounds(this.width / 2 - 126, topButtonY, 120, 20)
+            .build());
+
+        this.addRenderableWidget(Button.builder(Component.translatable("viewboard.screen.groups"), button ->
+                Minecraft.getInstance().setScreen(new GroupEditorScreen(this)))
+            .bounds(this.width / 2 + 6, topButtonY, 120, 20)
             .build());
 
         this.addRenderableWidget(Button.builder(Component.translatable("gui.back"), button -> this.onClose())

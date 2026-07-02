@@ -9,6 +9,7 @@ import java.util.Locale;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.ContainerObjectSelectionList;
 import net.minecraft.client.gui.components.EditBox;
@@ -28,6 +29,7 @@ public final class KeybindRulesScreen extends Screen {
     private static final int PADDING = 12;
 
     private final Screen parent;
+    private final String targetGroupId;
     private final ViewBoardKeybindRules rules = ViewBoardKeybindRules.getInstance();
     private EditBox searchBox;
     private Button filterButton;
@@ -39,6 +41,13 @@ public final class KeybindRulesScreen extends Screen {
     public KeybindRulesScreen(Screen parent) {
         super(Component.translatable("viewboard.rules.title"));
         this.parent = parent;
+        this.targetGroupId = null;
+    }
+
+    public KeybindRulesScreen(Screen parent, String targetGroupId) {
+        super(Component.translatable("viewboard.rules.title"));
+        this.parent = parent;
+        this.targetGroupId = targetGroupId;
     }
 
     @Override
@@ -59,10 +68,11 @@ public final class KeybindRulesScreen extends Screen {
 
         int listTop = this.searchBox.getY() + this.searchBox.getHeight() + 8;
         int listBottom = this.height - 28 - 6;
-        this.rulesList = this.addRenderableWidget(new RulesList(Minecraft.getInstance(), this.width, this.height, listTop, listBottom));
+        this.rulesList = this.addRenderableWidget(new RulesList(Minecraft.getInstance(), this.width, this.height, listTop, ROW_HEIGHT));
+        this.rulesList.updateSize(this.width, this.height, listTop, listBottom);
         this.refreshList();
 
-        this.backButton = this.addRenderableWidget(Button.builder(Component.translatable("gui.back"), button -> this.onClose())
+        this.backButton = this.addRenderableWidget(Button.builder(this.targetGroupId == null ? Component.translatable("gui.back") : Component.translatable("viewboard.rules.close"), button -> this.onClose())
             .bounds(this.width / 2 - 75, this.height - 28, 150, 20)
             .build());
     }
@@ -119,11 +129,58 @@ public final class KeybindRulesScreen extends Screen {
         guiGraphics.fill(left, bottom - 1, right, bottom, COLOR_BORDER);
         guiGraphics.fill(left, top, left + 1, bottom, COLOR_BORDER);
         guiGraphics.fill(right - 1, top, right, bottom, COLOR_BORDER);
+        this.renderToolbarFrame(guiGraphics, this.searchBox.getY() - 4, this.searchBox.getY() + this.searchBox.getHeight() + 4);
 
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, 8, COLOR_TEXT);
-        guiGraphics.drawCenteredString(this.font, Component.translatable("viewboard.rules.subtitle"), this.width / 2, 18, COLOR_SUBTEXT);
+        guiGraphics.drawCenteredString(this.font, this.targetGroupId == null
+            ? Component.translatable("viewboard.rules.subtitle")
+            : Component.translatable("viewboard.rules.assign_subtitle", this.targetGroupName()), this.width / 2, 18, COLOR_SUBTEXT);
 
+        this.renderToolbarWidgetBox(guiGraphics, this.searchBox);
+        this.renderToolbarWidgetBox(guiGraphics, this.filterButton);
         super.render(guiGraphics, mouseX, mouseY, partialTick);
+        this.renderToolbarWidgetBorder(guiGraphics, this.searchBox);
+        this.renderToolbarWidgetBorder(guiGraphics, this.filterButton);
+    }
+
+    private void renderToolbarFrame(GuiGraphics guiGraphics, int top, int bottom) {
+        int left = PADDING + 4;
+        int right = this.width - PADDING - 4;
+        guiGraphics.fill(left, top, right, bottom, 0xAA050505);
+        guiGraphics.fill(left, top, right, top + 1, COLOR_BORDER);
+        guiGraphics.fill(left, bottom - 1, right, bottom, COLOR_BORDER);
+        guiGraphics.fill(left, top, left + 1, bottom, COLOR_BORDER);
+        guiGraphics.fill(right - 1, top, right, bottom, COLOR_BORDER);
+    }
+
+    private void renderToolbarWidgetBox(GuiGraphics guiGraphics, AbstractWidget widget) {
+        if (widget == null) {
+            return;
+        }
+        int left = widget.getX() - 1;
+        int top = widget.getY() - 1;
+        int right = widget.getX() + widget.getWidth() + 1;
+        int bottom = widget.getY() + widget.getHeight() + 1;
+        guiGraphics.fill(left, top, right, bottom, 0xFF111820);
+        guiGraphics.fill(left, top, right, top + 1, COLOR_BORDER);
+        guiGraphics.fill(left, bottom - 1, right, bottom, COLOR_BORDER);
+        guiGraphics.fill(left, top, left + 1, bottom, COLOR_BORDER);
+        guiGraphics.fill(right - 1, top, right, bottom, COLOR_BORDER);
+    }
+
+    private void renderToolbarWidgetBorder(GuiGraphics guiGraphics, AbstractWidget widget) {
+        if (widget == null) {
+            return;
+        }
+        int left = widget.getX() - 1;
+        int top = widget.getY() - 1;
+        int right = widget.getX() + widget.getWidth() + 1;
+        int bottom = widget.getY() + widget.getHeight() + 1;
+        int border = widget.isHoveredOrFocused() ? 0xFFFFFFFF : 0xFF8A94A3;
+        guiGraphics.fill(left, top, right, top + 1, border);
+        guiGraphics.fill(left, bottom - 1, right, bottom, border);
+        guiGraphics.fill(left, top, left + 1, bottom, border);
+        guiGraphics.fill(right - 1, top, right, bottom, border);
     }
 
     private void refreshList() {
@@ -161,25 +218,36 @@ public final class KeybindRulesScreen extends Screen {
     private void refreshFilterButton() {
         if (this.filterButton != null) {
             this.filterButton.setMessage(Component.translatable(this.ignoredFilter.translationKey));
+            this.filterButton.visible = this.targetGroupId == null;
         }
     }
 
+    private KeybindGroupConfig targetGroup() {
+        if (this.targetGroupId == null) {
+            return null;
+        }
+        return this.rules.groups().stream().filter(group -> group.id().equals(this.targetGroupId)).findFirst().orElse(null);
+    }
+
+    private Component targetGroupName() {
+        KeybindGroupConfig group = this.targetGroup();
+        return group == null ? Component.literal("-") : Component.literal(group.name());
+    }
+
     private final class RulesList extends ContainerObjectSelectionList<RuleEntry> {
-        private RulesList(Minecraft minecraft, int width, int height, int top, int bottom) {
-            super(minecraft, width, height, top, bottom, ROW_HEIGHT);
+        private RulesList(Minecraft minecraft, int width, int height, int top, int itemHeight) {
+            super(minecraft, width, height, top, height - FOOTER_H - 6, itemHeight);
         }
 
         @Override
         public int getRowWidth() {
-            return Math.max(40, Math.min(520, this.width - PADDING * 2 - 18));
+            return Math.max(40, this.width - PADDING * 2 - 18);
         }
 
         @Override
         public int getRowLeft() {
             return PADDING + 2;
         }
-
-        @Override
         protected int getScrollbarPosition() {
             return this.width - PADDING - 6;
         }
@@ -202,8 +270,7 @@ public final class KeybindRulesScreen extends Screen {
                 rules.setIgnored(this.mapping, !rules.isIgnored(this.mapping));
                 KeybindRulesScreen.this.refreshList();
             }).bounds(0, 0, this.ignoreWidth, 20).build();
-            this.groupButton = Button.builder(Component.empty(), button ->
-                Minecraft.getInstance().setScreen(new GroupEditorScreen(KeybindRulesScreen.this, this.mapping)))
+            this.groupButton = Button.builder(Component.empty(), button -> this.handleGroupButtonClick())
                 .bounds(0, 0, this.groupWidth, 20)
                 .build();
             this.refreshButtons();
@@ -215,11 +282,11 @@ public final class KeybindRulesScreen extends Screen {
             int rowHeight = ROW_HEIGHT - 4;
 
             int available = width - 8 - 6;
-            int desired = 88 + 110;
+            int desired = KeybindRulesScreen.this.targetGroupId == null ? 88 + 110 : 132;
             if (available < desired) {
                 int shrink = desired - available;
                 int ignore = Math.max(60, 88 - shrink / 2);
-                int group = Math.max(80, 110 - (shrink - (88 - ignore)));
+                int group = Math.max(80, (KeybindRulesScreen.this.targetGroupId == null ? 110 : 132) - (shrink - (88 - ignore)));
                 this.ignoreWidth = ignore;
                 this.groupWidth = group;
                 this.ignoreButton.setWidth(ignore);
@@ -229,14 +296,15 @@ public final class KeybindRulesScreen extends Screen {
                     this.ignoreWidth = 88;
                     this.ignoreButton.setWidth(88);
                 }
-                if (this.groupWidth != 110) {
-                    this.groupWidth = 110;
-                    this.groupButton.setWidth(110);
+                int targetGroupWidth = KeybindRulesScreen.this.targetGroupId == null ? 110 : 132;
+                if (this.groupWidth != targetGroupWidth) {
+                    this.groupWidth = targetGroupWidth;
+                    this.groupButton.setWidth(targetGroupWidth);
                 }
             }
 
             int ignoreX = left + width - this.ignoreButton.getWidth() - 4;
-            int groupX = ignoreX - this.groupButton.getWidth() - 6;
+            int groupX = KeybindRulesScreen.this.targetGroupId == null ? ignoreX - this.groupButton.getWidth() - 6 : left + width - this.groupButton.getWidth() - 4;
 
             guiGraphics.fill(left, rowTop, left + width, rowTop + rowHeight, hovered ? 0x552E2E2E : 0x33242424);
             guiGraphics.fill(left, rowTop, left + width, rowTop + 1, COLOR_BORDER);
@@ -245,7 +313,9 @@ public final class KeybindRulesScreen extends Screen {
             this.groupButton.setPosition(groupX, rowTop + 2);
             this.ignoreButton.setPosition(ignoreX, rowTop + 2);
             this.groupButton.render(guiGraphics, mouseX, mouseY, partialTick);
-            this.ignoreButton.render(guiGraphics, mouseX, mouseY, partialTick);
+            if (KeybindRulesScreen.this.targetGroupId == null) {
+                this.ignoreButton.render(guiGraphics, mouseX, mouseY, partialTick);
+            }
 
             int textRight = groupX - 8;
             String title = Component.translatable(this.mapping.getName()).getString();
@@ -262,12 +332,26 @@ public final class KeybindRulesScreen extends Screen {
 
         @Override
         public List<? extends GuiEventListener> children() {
-            return List.of(this.ignoreButton, this.groupButton);
+            return KeybindRulesScreen.this.targetGroupId == null ? List.of(this.ignoreButton, this.groupButton) : List.of(this.groupButton);
         }
 
         @Override
         public List<? extends NarratableEntry> narratables() {
-            return List.of(this.ignoreButton, this.groupButton);
+            return KeybindRulesScreen.this.targetGroupId == null ? List.of(this.ignoreButton, this.groupButton) : List.of(this.groupButton);
+        }
+
+        @Override
+        public boolean mouseClicked(double mouseX, double mouseY, int button) {
+            if (this.groupButton.mouseClicked(mouseX, mouseY, button)) {
+                return true;
+            }
+            return KeybindRulesScreen.this.targetGroupId == null && this.ignoreButton.mouseClicked(mouseX, mouseY, button);
+        }
+
+        @Override
+        public boolean mouseReleased(double mouseX, double mouseY, int button) {
+            return this.groupButton.mouseReleased(mouseX, mouseY, button)
+                || (KeybindRulesScreen.this.targetGroupId == null && this.ignoreButton.mouseReleased(mouseX, mouseY, button));
         }
 
         private void refreshButtons() {
@@ -275,9 +359,36 @@ public final class KeybindRulesScreen extends Screen {
                 rules.isIgnored(this.mapping) ? "viewboard.rules.ignore_on" : "viewboard.rules.ignore_off"));
 
             KeybindGroupConfig group = rules.groupFor(this.mapping).orElse(null);
-            this.groupButton.setMessage(Component.translatable(
-                group == null ? "viewboard.rules.group_none" : "viewboard.rules.group_named",
-                group == null ? Component.empty() : Component.literal(group.name())));
+            if (KeybindRulesScreen.this.targetGroupId == null) {
+                this.groupButton.active = true;
+                this.groupButton.setMessage(Component.translatable(
+                    group == null ? "viewboard.rules.group_none" : "viewboard.rules.group_named",
+                    group == null ? Component.empty() : Component.literal(group.name())));
+            } else if (group == null) {
+                this.groupButton.active = KeybindRulesScreen.this.targetGroup() != null;
+                this.groupButton.setMessage(Component.translatable("viewboard.rules.add_to_group"));
+            } else if (group.id().equals(KeybindRulesScreen.this.targetGroupId)) {
+                this.groupButton.active = true;
+                this.groupButton.setMessage(Component.translatable("viewboard.rules.remove_from_group"));
+            } else {
+                this.groupButton.active = false;
+                this.groupButton.setMessage(Component.translatable("viewboard.rules.in_other_group", Component.literal(group.name())));
+            }
+        }
+
+        private void handleGroupButtonClick() {
+            if (KeybindRulesScreen.this.targetGroupId == null) {
+                Minecraft.getInstance().setScreen(new GroupEditorScreen(KeybindRulesScreen.this, this.mapping));
+                return;
+            }
+
+            KeybindGroupConfig group = rules.groupFor(this.mapping).orElse(null);
+            if (group == null) {
+                rules.assignToGroup(this.mapping, KeybindRulesScreen.this.targetGroupId);
+            } else if (group.id().equals(KeybindRulesScreen.this.targetGroupId)) {
+                rules.removeFromGroup(this.mapping);
+            }
+            KeybindRulesScreen.this.refreshList();
         }
     }
 
