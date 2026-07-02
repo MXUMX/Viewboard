@@ -9,6 +9,12 @@ displayName="${mod_name}"
 authors="${mod_authors}"
 description="${mod_description}"
 
+[[mixins]]
+config="${mod_id}.mixins.json"
+
+[[mixins]]
+config="${mod_id}-controlling.mixins.json"
+
 [[dependencies.${mod_id}]]
 modId="forge"
 mandatory=true

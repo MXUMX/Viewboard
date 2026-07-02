@@ -25,6 +25,7 @@ legacyForge {
     runs {
         client {
             client()
+            programArgument '--mixin.config=viewboard.mixins.json'
         }
     }
 
@@ -38,9 +39,18 @@ legacyForge {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.release = 17
+    options.compilerArgs += [
+        "-AoutRefMapFile=${layout.buildDirectory.file("tmp/compileJava/${mod_id}.refmap.json").get().asFile}",
+        "-AreobfTsrgFile=${layout.buildDirectory.file('moddev/artifacts/namedToIntermediate.tsrg').get().asFile}",
+        '-AdefaultObfuscationEnv=searge',
+        '-AmappingTypes=tsrg',
+        '-AdisableTargetValidator=true'
+    ]
 }
 
 dependencies {
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+
     testImplementation 'com.google.code.gson:gson:2.10.1'
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -48,6 +58,17 @@ dependencies {
 
 tasks.named('test', Test).configure {
     useJUnitPlatform()
+}
+
+tasks.named('jar', Jar).configure {
+    from(layout.buildDirectory.file("tmp/compileJava/${mod_id}.refmap.json")) {
+        into ''
+    }
+    manifest {
+        attributes([
+            'MixinConfigs': "${mod_id}.mixins.json"
+        ])
+    }
 }
 
 tasks.named('processResources', ProcessResources).configure {

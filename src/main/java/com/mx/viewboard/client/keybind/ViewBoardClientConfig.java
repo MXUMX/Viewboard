@@ -7,6 +7,7 @@ import java.util.Set;
 
 public final class ViewBoardClientConfig {
     private String selectedLayout = KeyboardLayoutId.QWERTY.name();
+    private String controlsListWidthMode = ControlsListWidthMode.DEFAULT.name();
     private final Set<String> ignoredBindings = new LinkedHashSet<>();
     private final List<KeybindGroupConfig> groups = new ArrayList<>();
 
@@ -20,6 +21,18 @@ public final class ViewBoardClientConfig {
 
     public void setSelectedLayout(KeyboardLayoutId layoutId) {
         this.selectedLayout = layoutId.name();
+    }
+
+    public ControlsListWidthMode controlsListWidthMode() {
+        try {
+            return ControlsListWidthMode.valueOf(this.controlsListWidthMode);
+        } catch (IllegalArgumentException | NullPointerException exception) {
+            return ControlsListWidthMode.DEFAULT;
+        }
+    }
+
+    public void setControlsListWidthMode(ControlsListWidthMode mode) {
+        this.controlsListWidthMode = mode.name();
     }
 
     public Set<String> ignoredBindings() {
