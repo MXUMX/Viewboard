@@ -14,6 +14,10 @@
       "com.mx.viewboard.ViewBoardMod"
     ]
   },
+  "mixins": [
+    "viewboard.mixins.json",
+    "viewboard-controlling.mixins.json"
+  ],
   "depends": {
     "fabricloader": ">=${loader_version}",
     "fabric-api": "*",

@@ -1,6 +1,7 @@
 package com.mx.viewboard.client.keybind;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import com.mx.viewboard.client.mixin.KeyMappingAccessor;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -53,6 +54,15 @@ public final class ViewBoardKeybindRules {
     public void cycleLayout() {
         KeyboardLayoutId next = this.selectedLayout().next();
         this.config.setSelectedLayout(next);
+        this.save();
+    }
+
+    public ControlsListWidthMode controlsListWidthMode() {
+        return this.config().controlsListWidthMode();
+    }
+
+    public void cycleControlsListWidthMode() {
+        this.config().setControlsListWidthMode(this.controlsListWidthMode().next());
         this.save();
     }
 
@@ -303,17 +313,7 @@ public final class ViewBoardKeybindRules {
     }
 
     public static InputConstants.Key currentKey(KeyMapping mapping) {
-        try {
-            var field = KeyMapping.class.getDeclaredField("key");
-            field.setAccessible(true);
-            Object value = field.get(mapping);
-            if (value instanceof InputConstants.Key key) {
-                return key;
-            }
-        } catch (Exception ignored) {
-            // Fabric's official 1.20.1 mappings do not expose a getKey accessor.
-        }
-        return InputConstants.UNKNOWN;
+        return ((KeyMappingAccessor) mapping).viewboard$getKey();
     }
 
     public void save() {
