@@ -1,0 +1,178 @@
+name: Java CI with Gradle
+
+on:
+  push:
+    branches:
+      - neoforge-1.21.11
+      - neoforge-1.21.5
+      - neoforge-1.21.1-1.21.3
+      - neoforge-26.1.2
+      - neoforge-1.20.1
+      - forge-1.20.1
+      - fabric-1.20.1
+  workflow_dispatch: # This enables the manual trigger
+    inputs:
+      reason:
+        description: 'Reason for manual release'
+        required: false
+        default: 'Manual trigger'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      # Checkout repo
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate commit list
+        id: commits
+        run: |
+          COMMITS=$(git log -n 20 --pretty=format:"- %h %s")
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      # Setup Java
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: gradle
+
+      # Ensure gradlew is executable
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      # Setup Gradle caching + config
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Extract version from gradle.properties
+        id: get_version
+        run: |
+          VERSION=$(grep "^mod_version=" gradle.properties | cut -d'=' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      # Build project
+      - name: Build with Gradle
+        run: ./gradlew build --no-daemon
+
+      # Create GitHub Release with artifacts
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: build/libs/*.jar
+          tag_name: ${{ github.ref_name }}-${{ github.run_id }}
+          name: ViewBoard ${{ steps.get_version.outputs.version }} for ${{ github.ref_name }}
+          target_commitish: ${{ github.ref_name }}
+          body: |
+            ## Changes
+            ${{ steps.commits.outputs.commits }}
+          draft: false
+          prerelease: false
+        
+      - name: Parse branch info
+        id: branch
+        run: |
+          BRANCH="${GITHUB_REF_NAME}"
+
+          # Extract loader (before first dash)
+          LOADER=$(echo "$BRANCH" | cut -d'-' -f1)
+
+          # Extract version part (everything after first dash)
+          VERSION_PART=$(echo "$BRANCH" | cut -d'-' -f2-)
+
+          echo "loader=$LOADER" >> $GITHUB_OUTPUT
+
+          # Handle version range (e.g., 1.21.1-1.21.3)
+          if [[ "$VERSION_PART" == *"-"* ]]; then
+            START=$(echo "$VERSION_PART" | cut -d'-' -f1)
+            END=$(echo "$VERSION_PART" | cut -d'-' -f2)
+
+            BASE=$(echo "$START" | cut -d'.' -f1,2)
+            START_PATCH=$(echo "$START" | cut -d'.' -f3)
+            END_PATCH=$(echo "$END" | cut -d'.' -f3)
+
+            VERSIONS=""
+            for ((i=START_PATCH; i<=END_PATCH; i++)); do
+              VERSIONS+="$BASE.$i"$'\n'
+            done
+          else
+            VERSIONS="$VERSION_PART"
+          fi
+
+          echo "versions<<EOF" >> $GITHUB_OUTPUT
+          echo "$VERSIONS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Prepare JAR files for upload
+        run: |
+          mkdir -p upload
+          find build/libs -name "*.jar" ! -name "*sources.jar" ! -name "*javadoc.jar" -exec cp {} upload/ \;
+          rm -f upload/*-sources.jar
+
+      - name: Check jar contents
+        run: |
+          for f in upload/*.jar; do
+            echo "Checking $f"
+            jar tf "$f" | head
+          done
+
+      - name: Debug outputs
+        run: |
+          echo "Loader: '${{ steps.branch.outputs.loader }}'"
+          echo "Versions:"
+          echo "${{ steps.branch.outputs.versions }}"
+
+      - name: Publish to CurseForge & Modrinth
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          # CurseForge
+          curseforge-id: 1485396
+          curseforge-token: ${{ secrets.CURSEFORGE_API_KEY }}
+
+          # 🆕 Modrinth
+          modrinth-id: xf9PORQx
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+
+          files: upload/*.jar
+
+          name: ViewBoard ${{ steps.get_version.outputs.version }} for ${{ github.ref_name }}
+          version: ${{ steps.get_version.outputs.version }}
+
+          changelog: |
+            ## Changes
+            ${{ steps.commits.outputs.commits }}
+
+          loaders: |
+            ${{ steps.branch.outputs.loader }}
+
+          game-versions: |
+            ${{ steps.branch.outputs.versions }}
+
+          version-type: release
+
+  dependency-submission:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Submit dependency graph
+        uses: gradle/actions/dependency-submission@v4
