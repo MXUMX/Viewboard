@@ -817,6 +817,10 @@ public final class GroupEditorScreen extends Screen {
         }
 
         private void renderQuickButton(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+            if (this.overlapsOpenPanel()) {
+                return;
+            }
+
             KeybindGroupConfig currentGroup = rules.groupFor(focusMapping).orElse(null);
             boolean inThisGroup = currentGroup != null && currentGroup.id().equals(this.group.id());
             boolean disabled = currentGroup != null && !inThisGroup;
@@ -835,6 +839,14 @@ public final class GroupEditorScreen extends Screen {
 
         private boolean isInsideQuickButton(double mouseX, double mouseY) {
             return mouseX >= this.quickX && mouseX <= this.quickX + this.quickWidth && mouseY >= this.quickY && mouseY <= this.quickY + 20;
+        }
+
+        private boolean overlapsOpenPanel() {
+            return selectedGroup() != null
+                && this.quickX < panelX + panelWidth
+                && this.quickX + this.quickWidth > panelX
+                && this.quickY < panelY + panelHeight
+                && this.quickY + 20 > panelY;
         }
 
         @Override
